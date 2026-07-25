@@ -6,11 +6,12 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
     <artifactId>llmrix-model-client</artifactId>
     <packaging>pom</packaging>
-    <name>LLMRix Model Client</name>
+    <name>llmrix-model-client</name>
+    <description>LLMRix Model Client aggregator module</description>
     <modules>
         <module>llmrix-model-orion</module>
         <module>llmrix-model-orion-spring-starter</module>

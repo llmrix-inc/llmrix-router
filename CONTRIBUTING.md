@@ -17,8 +17,8 @@ All contributors are expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md
 **Requirements:** Java 17+, Maven 3.9+, Docker (for Redis integration tests).
 
 ```bash
-git clone https://github.com/llmrix/llmrix-model.git
-cd llmrix-model
+git clone https://github.com/llmrix/llmrix-router.git
+cd llmrix-router
 mvn clean verify
 ```
 

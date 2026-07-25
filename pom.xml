@@ -6,12 +6,12 @@
 
     <groupId>com.llmrix.model</groupId>
     <artifactId>llmrix-model-parent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <packaging>pom</packaging>
 
-    <name>LLMRix Model</name>
+    <name>llmrix-model-parent</name>
     <description>Lightweight multi-model routing and orchestration SDK for Java</description>
-    <url>https://github.com/llmrix/llmrix-model</url>
+    <url>https://github.com/llmrix/llmrix-router</url>
 
     <licenses>
         <license>
@@ -20,14 +20,33 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
-    <developers>
-        <developer><name>LLMRix Contributors</name></developer>
-    </developers>
+
+    <organization>
+        <name>llmrix</name>
+        <url>https://www.llmrix.com</url>
+    </organization>
+
     <scm>
-        <connection>scm:git:https://github.com/llmrix/llmrix-model.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/llmrix/llmrix-model.git</developerConnection>
-        <url>https://github.com/llmrix/llmrix-model</url>
+        <connection>scm:git:git@github.com:llmrix/llmrix-router.git</connection>
+        <developerConnection>scm:git:git@github.com:llmrix/llmrix-router.git</developerConnection>
+        <url>https://github.com/llmrix/llmrix-router</url>
     </scm>
+
+    <developers>
+        <developer>
+            <id>llmrix</id>
+            <name>llmrix</name>
+            <email>ailab@llmrix.com</email>
+            <url>https://github.com/llmrix/llmrix-router/</url>
+            <organizationUrl>https://www.llmrix.com</organizationUrl>
+            <timezone>+8</timezone>
+        </developer>
+    </developers>
+
+    <issueManagement>
+        <system>github</system>
+        <url>https://github.com/llmrix/llmrix-router/issues</url>
+    </issueManagement>
 
     <modules>
         <module>llmrix-model-router</module>
@@ -92,6 +111,28 @@
         <pluginManagement>
             <plugins>
                 <plugin>
+                    <!--mvn versions:set -DnewVersion=1.9.2 -DprocessAllModules=true-->
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>versions-maven-plugin</artifactId>
+                    <version>2.13.0</version>
+                    <configuration>
+                        <generateBackupPoms>false</generateBackupPoms>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.2</version>
+                    <configuration>
+                        <useModulePath>false</useModulePath>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.3.1</version>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.13.0</version>
@@ -102,10 +143,63 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.5.2</version>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <version>3.3.1</version>
+                    <executions>
+                        <execution>
+                            <id>attach-sources</id>
+                            <goals>
+                                <goal>jar-no-fork</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.11.2</version>
                     <configuration>
-                        <useModulePath>false</useModulePath>
+                        <charset>${project.build.sourceEncoding}</charset>
+                        <docencoding>${project.build.sourceEncoding}</docencoding>
+                        <additionalJOption>-Xdoclint:none</additionalJOption>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>jar</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-gpg-plugin</artifactId>
+                    <version>3.2.7</version>
+                    <executions>
+                        <execution>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>sign</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                    <configuration>
+                        <gpgArguments>
+                            <arg>--pinentry-mode</arg>
+                            <arg>loopback</arg>
+                        </gpgArguments>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonatype.central</groupId>
+                    <artifactId>central-publishing-maven-plugin</artifactId>
+                    <version>0.7.0</version>
+                    <extensions>true</extensions>
+                    <configuration>
+                        <publishingServerId>sonatype</publishingServerId>
+                        <!-- 如果你想让它在上传校验成功后全自动发布，可以改为 true；设为 false 则会在网页端生成记录等你手动点 -->
+                        <autoPublish>true</autoPublish>
                     </configuration>
                 </plugin>
             </plugins>
@@ -118,26 +212,46 @@
             <build>
                 <plugins>
                     <plugin>
+                        <!--mvn versions:set -DnewVersion=1.8.8 -DprocessAllModules=true-->
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>versions-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                    </plugin>
+                    <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
-                        <version>3.3.1</version>
-                        <executions><execution><id>attach-sources</id><goals><goal>jar-no-fork</goal></goals></execution></executions>
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.11.2</version>
-                        <configuration><doclint>none</doclint></configuration>
-                        <executions><execution><id>attach-javadocs</id><goals><goal>jar</goal></goals></execution></executions>
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.2.7</version>
-                        <executions><execution><id>sign-artifacts</id><phase>verify</phase><goals><goal>sign</goal></goals></execution></executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
                     </plugin>
                 </plugins>
             </build>
         </profile>
     </profiles>
+
+    <!--mac-->
+    <!-- mvn -Dmaven.test.skip=true clean deploy -Prelease -Dgpg.executable=gpg -Dgpg.passphrase='password' 2>&1 -->
+    <distributionManagement>
+        <repository>
+            <id>sonatype</id>
+            <name>Central Portal</name>
+            <url>https://central.sonatype.com/api/v1/publisher/deployments/maven2/</url>
+        </repository>
+    </distributionManagement>
 </project>

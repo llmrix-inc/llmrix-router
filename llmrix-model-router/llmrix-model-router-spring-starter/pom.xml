@@ -5,10 +5,11 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-router</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
     <artifactId>llmrix-model-router-spring-starter</artifactId>
-    <name>LLMRix Model Router Spring Boot Starter</name>
+    <name>llmrix-model-router-spring-starter</name>
+    <description>Spring Boot auto-configuration starter for LLMRix Router</description>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>

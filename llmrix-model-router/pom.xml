@@ -6,11 +6,12 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
     <artifactId>llmrix-model-router</artifactId>
     <packaging>pom</packaging>
-    <name>LLMRix Model Router</name>
+    <name>llmrix-model-router</name>
+    <description>LLMRix Model Router aggregator module</description>
     <modules>
         <module>llmrix-model-router-core</module>
         <module>llmrix-model-router-integrations</module>

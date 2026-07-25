@@ -12,7 +12,7 @@ Once `1.0` is released, security fixes will be backported to the current and pre
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Please report security issues by opening a [GitHub Security Advisory](https://github.com/llmrix/llmrix-model/security/advisories/new) (private disclosure). Include:
+Please report security issues by opening a [GitHub Security Advisory](https://github.com/llmrix/llmrix-router/security/advisories/new) (private disclosure). Include:
 
 - A description of the vulnerability and its potential impact.
 - Steps to reproduce or a minimal proof-of-concept.

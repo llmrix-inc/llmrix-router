@@ -5,10 +5,11 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
     <artifactId>llmrix-model-examples</artifactId>
-    <name>LLMRix Model Examples</name>
+    <name>llmrix-model-examples</name>
+    <description>Executable examples and test suite for LLMRix Router</description>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>

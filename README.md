@@ -77,12 +77,12 @@ The framework owns routing semantics and request correctness. Infrastructure rem
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-core</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-integrations</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 ```
 
@@ -142,7 +142,7 @@ Built-in strategies include priority, round-robin, weighted random, balanced sco
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-spring-starter</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 ```
 

@@ -77,12 +77,12 @@ LLMRix 将多个模型 Provider 收敛为一个稳定的 `ChatModel` 接口。�
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-core</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-integrations</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 ```
 
@@ -142,7 +142,7 @@ ChatResponse response = model.chat(ChatRequest.builder()
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-spring-starter</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 ```
 
