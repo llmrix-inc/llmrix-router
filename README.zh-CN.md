@@ -1,8 +1,30 @@
-# LLMRix Model Router
-
-**面向 Java 生态、以生产可用性为目标的多模型路由与编排框架。**
-
-[English](README.md) · [交互式架构图](docs/architecture/index.html) · [快速开始](#快速开始) · [Spring-Boot](#spring-boot) · [服务端](#openai-compatible-服务端)
+<h1 align="center">LLMRix Model Router</h1>
+<p align="center">
+  <strong>面向 Java 生态、以生产可用性为目标的多模型路由与编排框架。</strong>
+</p>
+<p align="center">
+  <em>OpenAI-compatible Provider · Spring AI · LangChain4j · 语义路由 · Contextual Bandit · Fugu 编排</em>
+</p>
+<p align="center">
+  <a href="https://github.com/llmrix-inc/llmrix-router/stargazers"><img src="https://img.shields.io/github/stars/llmrix-inc/llmrix-router?style=for-the-badge&logo=github&color=ffca28" alt="GitHub Stars"></a>
+  <a href="https://github.com/llmrix-inc/llmrix-router/network/members"><img src="https://img.shields.io/github/forks/llmrix-inc/llmrix-router?style=for-the-badge&logo=github&color=8bc34a" alt="GitHub Forks"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"></a>
+  <a href="#环境要求"><img src="https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java Version"></a>
+  <a href="#spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.x-6db33f?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot"></a>
+  <img src="https://img.shields.io/badge/version-0.1.0--SNAPSHOT-lightgrey?style=for-the-badge" alt="Version">
+</p>
+<p align="center">
+  <a href="#核心价值">核心价值</a> •
+  <a href="#架构">架构</a> •
+  <a href="#模块说明">模块</a> •
+  <a href="#快速开始">快速开始</a> •
+  <a href="#spring-boot">Spring Boot</a> •
+  <a href="#openai-compatible-服务端">服务端</a> •
+  <a href="#orion-client">客户端</a>
+</p>
+<p align="center">
+  <a href="./README.zh-CN.md">简体中文</a> | <a href="./README.md">English</a>
+</p>
 
 LLMRix 将多个模型 Provider 收敛为一个稳定的 `ChatModel` 接口。框架根据能力、质量、成本、延迟、配额与健康状态筛选模型，并在不向业务泄露路由复杂度的前提下完成有界重试、冷却和跨模型降级。
 

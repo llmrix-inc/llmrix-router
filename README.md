@@ -1,8 +1,30 @@
-# LLMRix Model Router
-
-**A production-oriented multi-model routing and orchestration framework for Java.**
-
-[简体中文](README.zh-CN.md) · [Interactive Architecture](docs/architecture/index.html) · [Quick Start](#quick-start) · [Spring Boot](#spring-boot) · [Server](#openai-compatible-server)
+<h1 align="center">LLMRix Model Router</h1>
+<p align="center">
+  <strong>A production-oriented multi-model routing and orchestration framework for Java.</strong>
+</p>
+<p align="center">
+  <em>OpenAI-compatible providers · Spring AI · LangChain4j · Semantic routing · Contextual bandits · Fugu orchestration</em>
+</p>
+<p align="center">
+  <a href="https://github.com/llmrix-inc/llmrix-router/stargazers"><img src="https://img.shields.io/github/stars/llmrix-inc/llmrix-router?style=for-the-badge&logo=github&color=ffca28" alt="GitHub Stars"></a>
+  <a href="https://github.com/llmrix-inc/llmrix-router/network/members"><img src="https://img.shields.io/github/forks/llmrix-inc/llmrix-router?style=for-the-badge&logo=github&color=8bc34a" alt="GitHub Forks"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"></a>
+  <a href="#requirements"><img src="https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java Version"></a>
+  <a href="#spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.x-6db33f?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot"></a>
+  <img src="https://img.shields.io/badge/version-0.1.0--SNAPSHOT-lightgrey?style=for-the-badge" alt="Version">
+</p>
+<p align="center">
+  <a href="#why-llmrix">Why LLMRix</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#modules">Modules</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#spring-boot">Spring Boot</a> •
+  <a href="#openai-compatible-server">Server</a> •
+  <a href="#orion-client">Client</a>
+</p>
+<p align="center">
+  <a href="./README.zh-CN.md">简体中文</a> | <a href="./README.md">English</a>
+</p>
 
 LLMRix exposes multiple model providers through one stable `ChatModel` interface. It selects an eligible model using capability, quality, cost, latency, quota, and health signals, then applies bounded retries, cooldown, and fallback without leaking routing complexity into application code.
 
