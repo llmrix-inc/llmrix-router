@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <name>llmrix-model-parent</name>
-    <description>Lightweight multi-model routing and orchestration SDK for Java</description>
+    <description>A production-oriented multi-model routing and orchestration framework for Java.</description>
     <url>https://github.com/llmrix/llmrix-router</url>
 
     <licenses>
