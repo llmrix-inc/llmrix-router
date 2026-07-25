@@ -4,9 +4,9 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.x (latest) | Yes |
+| 1.x (latest) | Yes |
 
-Once `1.0` is released, security fixes will be backported to the current and previous minor lines.
+Security fixes are backported to the current and previous minor release lines.
 
 ## Reporting a Vulnerability
 

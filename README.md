@@ -6,8 +6,8 @@
   <em>OpenAI-compatible providers · Spring AI · LangChain4j · Semantic routing · Contextual bandits · Fugu orchestration</em>
 </p>
 <p align="center">
-  <a href="https://github.com/llmrix-inc/llmrix-router/stargazers"><img src="https://img.shields.io/github/stars/llmrix-inc/llmrix-router?style=for-the-badge&logo=github&color=ffca28" alt="GitHub Stars"></a>
-  <a href="https://github.com/llmrix-inc/llmrix-router/network/members"><img src="https://img.shields.io/github/forks/llmrix-inc/llmrix-router?style=for-the-badge&logo=github&color=8bc34a" alt="GitHub Forks"></a>
+  <a href="https://github.com/llmrix/llmrix-router/stargazers"><img src="https://img.shields.io/github/stars/llmrix/llmrix-router?style=for-the-badge&logo=github&color=ffca28" alt="GitHub Stars"></a>
+  <a href="https://github.com/llmrix/llmrix-router/network/members"><img src="https://img.shields.io/github/forks/llmrix/llmrix-router?style=for-the-badge&logo=github&color=8bc34a" alt="GitHub Forks"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"></a>
   <a href="#requirements"><img src="https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java Version"></a>
   <a href="#spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.x-6db33f?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot"></a>
@@ -30,7 +30,7 @@ LLMRix exposes multiple model providers through one stable `ChatModel` interface
 
 Use it as an embedded Java SDK, a Spring Boot starter, or an OpenAI-compatible routing service.
 
-> Project status: active development. The Java API and configuration model are usable, but the current `0.x` version does not yet carry a `1.x` compatibility guarantee.
+> Project status: General Availability (`1.0.0`). The Java API and configuration model are production-ready, with Semantic Versioning strictly enforced.
 
 ## Why LLMRix
 
@@ -273,7 +273,7 @@ The project follows Semantic Versioning. After `1.0`, public Java APIs, Maven co
 
 ## Contributing
 
-Bug reports, feature requests, and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+Bug reports, feature requests, and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and [GIT_CONVENTIONS.md](GIT_CONVENTIONS.md). Please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
 ## Security
 

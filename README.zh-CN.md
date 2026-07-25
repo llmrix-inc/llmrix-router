@@ -6,8 +6,8 @@
   <em>OpenAI-compatible Provider · Spring AI · LangChain4j · 语义路由 · Contextual Bandit · Fugu 编排</em>
 </p>
 <p align="center">
-  <a href="https://github.com/llmrix-inc/llmrix-router/stargazers"><img src="https://img.shields.io/github/stars/llmrix-inc/llmrix-router?style=for-the-badge&logo=github&color=ffca28" alt="GitHub Stars"></a>
-  <a href="https://github.com/llmrix-inc/llmrix-router/network/members"><img src="https://img.shields.io/github/forks/llmrix-inc/llmrix-router?style=for-the-badge&logo=github&color=8bc34a" alt="GitHub Forks"></a>
+  <a href="https://github.com/llmrix/llmrix-router/stargazers"><img src="https://img.shields.io/github/stars/llmrix/llmrix-router?style=for-the-badge&logo=github&color=ffca28" alt="GitHub Stars"></a>
+  <a href="https://github.com/llmrix/llmrix-router/network/members"><img src="https://img.shields.io/github/forks/llmrix/llmrix-router?style=for-the-badge&logo=github&color=8bc34a" alt="GitHub Forks"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"></a>
   <a href="#环境要求"><img src="https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java Version"></a>
   <a href="#spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.x-6db33f?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot"></a>
@@ -30,7 +30,7 @@ LLMRix 将多个模型 Provider 收敛为一个稳定的 `ChatModel` 接口。�
 
 它可以作为嵌入式 Java SDK、Spring Boot Starter，或者独立的 OpenAI-compatible 路由服务使用。
 
-> 项目状态：持续开发中。当前 `0.x` 版本已经具备可使用的 Java API 和配置模型，但尚不提供 `1.x` 级别的兼容性承诺。
+> 项目状态：正式发布（`1.0.0` GA）。Java API 与配置模型已达到生产可用标准，严格遵循 Semantic Versioning 语义化版本规范。
 
 ## 核心价值
 

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-07-25
+## [1.0.0] - 2026-07-25
 
 ### Added
 - `llmrix-model-router-core`: provider-neutral `ChatModel` API, candidate model, routing strategies (priority, round-robin, weighted random, balanced, semantic, contextual bandit), deterministic execution pipeline with quota, health, cooldown, retry, and lifecycle events.
@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `llmrix-model-orion`: lightweight framework-neutral Java client with `OrionModelClientListener` SPI, CRLF-safe custom headers, and request-level options.
 - `llmrix-model-orion-spring-starter`: Orion auto-configuration and Micrometer integration.
 - `llmrix-model-examples`: centralized test suite covering all modules; Redis and HTTP integration tests.
+- Maven Central deployment configuration and project metadata normalization.
 
-[Unreleased]: https://github.com/llmrix/llmrix-router/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/llmrix/llmrix-router/releases/tag/v0.1.0
+[Unreleased]: https://github.com/llmrix/llmrix-router/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/llmrix/llmrix-router/releases/tag/v1.0.0
