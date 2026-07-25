@@ -11,7 +11,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"></a>
   <a href="#requirements"><img src="https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java Version"></a>
   <a href="#spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.x-6db33f?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot"></a>
-  <img src="https://img.shields.io/badge/version-0.1.0--SNAPSHOT-lightgrey?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="Version">
 </p>
 <p align="center">
   <a href="#why-llmrix">Why LLMRix</a> •
