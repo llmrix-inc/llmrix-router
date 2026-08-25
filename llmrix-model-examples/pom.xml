@@ -23,18 +23,6 @@
         <maven.javadoc.skip>true</maven.javadoc.skip>
     </properties>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.sonatype.central</groupId>
-                <artifactId>central-publishing-maven-plugin</artifactId>
-                <configuration>
-                    <skipPublishing>true</skipPublishing>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
-
     <modules>
         <module>llmrix-model-router-core-examples</module>
         <module>llmrix-model-router-integrations-examples</module>

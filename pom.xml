@@ -249,7 +249,15 @@
                     <extensions>true</extensions>
                     <configuration>
                         <publishingServerId>sonatype</publishingServerId>
-                        <autoPublish>false</autoPublish>
+                        <autoPublish>true</autoPublish>
+                        <excludeArtifacts>
+                            <excludeArtifact>llmrix-model-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-router-core-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-router-integrations-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-router-spring-starter-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-router-server-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-client-examples</excludeArtifact>
+                        </excludeArtifacts>
                     </configuration>
                 </plugin>
             </plugins>
