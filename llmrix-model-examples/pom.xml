@@ -12,6 +12,17 @@
     <packaging>pom</packaging>
     <name>llmrix-model-examples</name>
     <description>Executable examples and module-scoped test projects for LLMRix Router</description>
+
+    <properties>
+        <!-- Skip deployment for all example modules and their children -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <!-- Skip GPG signing for examples (not published) -->
+        <gpg.skip>true</gpg.skip>
+        <!-- Skip source/javadoc jars for examples -->
+        <maven.source.skip>true</maven.source.skip>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+    </properties>
+
     <modules>
         <module>llmrix-model-router-core-examples</module>
         <module>llmrix-model-router-integrations-examples</module>
