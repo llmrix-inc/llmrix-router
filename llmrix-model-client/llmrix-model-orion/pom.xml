@@ -6,18 +6,18 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-client</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.1</version>
     </parent>
     <artifactId>llmrix-model-orion</artifactId>
     <name>llmrix-model-orion</name>
     <description>Lightweight framework-neutral Java client (Orion) for LLMRix Router</description>
     <dependencies>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-router-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-router-integrations</artifactId>
         </dependency>
         <dependency>

@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.llmrix.model</groupId>
-        <artifactId>llmrix-model-parent</artifactId>
-        <version>1.0.0</version>
+        <artifactId>llmrix-router</artifactId>
+        <version>1.0.1</version>
     </parent>
     <artifactId>llmrix-model-client</artifactId>
     <packaging>pom</packaging>

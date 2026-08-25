@@ -6,14 +6,14 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-client</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.1</version>
     </parent>
     <artifactId>llmrix-model-orion-spring-starter</artifactId>
     <name>llmrix-model-orion-spring-starter</name>
     <description>Spring Boot auto-configuration starter for LLMRix Orion client</description>
     <dependencies>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-orion</artifactId>
         </dependency>
         <dependency>

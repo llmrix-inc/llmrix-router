@@ -6,14 +6,14 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-examples</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.1</version>
     </parent>
     <artifactId>llmrix-model-router-core-examples</artifactId>
     <name>llmrix-model-router-core-examples</name>
     <description>Examples and tests for LLMRix Router Core</description>
     <dependencies>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-router-core</artifactId>
         </dependency>
         <dependency>
@@ -27,7 +27,7 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-router-integrations</artifactId>
             <scope>test</scope>
         </dependency>

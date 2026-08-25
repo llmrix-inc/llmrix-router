@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-25
+
 ### Added
 
 - **Multi-modal core API**: unified `ModelClient` interface with `ModelRequest` / `RoutedResponse` abstractions supporting chat, embedding, audio, image, and video modalities.
@@ -70,5 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `llmrix-model-examples`: Maven examples aggregator with module-scoped child projects; Redis and HTTP integration tests.
 - Maven Central deployment configuration and project metadata normalization.
 
-[Unreleased]: https://github.com/llmrix/llmrix-router/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/llmrix/llmrix-router/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/llmrix/llmrix-router/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/llmrix/llmrix-router/releases/tag/v1.0.0

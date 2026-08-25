@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.llmrix.model</groupId>
-    <artifactId>llmrix-model-parent</artifactId>
-    <version>1.0.0</version>
+    <artifactId>llmrix-router</artifactId>
+    <version>1.0.1</version>
     <packaging>pom</packaging>
 
-    <name>llmrix-model-parent</name>
+    <name>llmrix-router</name>
     <description>A production-oriented multi-model routing and orchestration framework for Java.</description>
     <url>https://github.com/llmrix/llmrix-router</url>
 
@@ -55,6 +55,8 @@
     </modules>
 
     <properties>
+        <!-- Unified project version for internal module dependency references -->
+        <llmrix-model.version>1.0.1</llmrix-model.version>
         <java.version>17</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -100,29 +102,29 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-core</artifactId>
-                <version>${project.version}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-integrations</artifactId>
-                <version>${project.version}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-spring-starter</artifactId>
-                <version>${project.version}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-orion</artifactId>
-                <version>${project.version}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-orion-spring-starter</artifactId>
-                <version>${project.version}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.projectlombok</groupId>
@@ -247,7 +249,15 @@
                     <extensions>true</extensions>
                     <configuration>
                         <publishingServerId>sonatype</publishingServerId>
-                        <autoPublish>false</autoPublish>
+                        <autoPublish>true</autoPublish>
+                        <excludeArtifacts>
+                            <excludeArtifact>llmrix-model-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-router-core-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-router-integrations-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-router-spring-starter-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-router-server-examples</excludeArtifact>
+                            <excludeArtifact>llmrix-model-client-examples</excludeArtifact>
+                        </excludeArtifacts>
                     </configuration>
                 </plugin>
             </plugins>

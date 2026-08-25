@@ -6,22 +6,22 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-examples</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.1</version>
     </parent>
     <artifactId>llmrix-model-client-examples</artifactId>
     <name>llmrix-model-client-examples</name>
     <description>Examples and tests for LLMRix model clients</description>
     <dependencies>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-orion</artifactId>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-orion-spring-starter</artifactId>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-router-spring-starter</artifactId>
         </dependency>
         <dependency>
