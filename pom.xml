@@ -55,8 +55,8 @@
     </modules>
 
     <properties>
-        <!-- CI-friendly version property for internal dependency references -->
-        <revision>1.0.1</revision>
+        <!-- Unified project version for internal module dependency references -->
+        <llmrix-model.version>1.0.1</llmrix-model.version>
         <java.version>17</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -104,27 +104,27 @@
             <dependency>
                 <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-core</artifactId>
-                <version>${revision}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-integrations</artifactId>
-                <version>${revision}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-spring-starter</artifactId>
-                <version>${revision}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-orion</artifactId>
-                <version>${revision}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-orion-spring-starter</artifactId>
-                <version>${revision}</version>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.projectlombok</groupId>
