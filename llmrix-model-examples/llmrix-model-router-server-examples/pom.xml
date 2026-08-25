@@ -13,7 +13,7 @@
     <description>Runnable Spring Boot server example for LLMRix Router</description>
     <dependencies>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.llmrix.model</groupId>
             <artifactId>llmrix-model-router-spring-starter</artifactId>
         </dependency>
         <dependency>

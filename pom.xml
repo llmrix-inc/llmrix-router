@@ -100,27 +100,27 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-integrations</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-router-spring-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-orion</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.llmrix.model</groupId>
                 <artifactId>llmrix-model-orion-spring-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
