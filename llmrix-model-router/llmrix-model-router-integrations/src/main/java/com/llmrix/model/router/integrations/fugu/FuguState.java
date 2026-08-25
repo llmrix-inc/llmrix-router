@@ -1,18 +1,29 @@
 package com.llmrix.model.router.integrations.fugu;
 
-import com.llmrix.model.router.core.api.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 
 import java.util.List;
 
-public record FuguState(
-        ChatRequest request,
-        List<String> candidateIds,
-        List<FuguTurn> turns,
-        String latestAnswer,
-        String latestSuggestion) {
+@Getter
+@EqualsAndHashCode
+@Accessors(fluent = true)
+public final class FuguState {
+    private final ChatRequest request;
+    private final List<String> candidateIds;
+    private final List<FuguTurn> turns;
+    private final String latestAnswer;
+    private final String latestSuggestion;
 
-    public FuguState {
-        candidateIds = List.copyOf(candidateIds);
-        turns = List.copyOf(turns);
+    public FuguState(ChatRequest request, List<String> candidateIds, List<FuguTurn> turns,
+                     String latestAnswer, String latestSuggestion) {
+        this.request = request;
+        this.candidateIds = List.copyOf(candidateIds);
+        this.turns = List.copyOf(turns);
+        this.latestAnswer = latestAnswer;
+        this.latestSuggestion = latestSuggestion;
     }
+
 }

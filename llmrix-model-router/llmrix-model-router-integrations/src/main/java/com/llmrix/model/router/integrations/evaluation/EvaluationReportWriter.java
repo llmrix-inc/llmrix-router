@@ -9,7 +9,9 @@ import java.util.stream.Collectors;
 public final class EvaluationReportWriter {
     private final ObjectMapper mapper;
 
-    public EvaluationReportWriter() { this(new ObjectMapper()); }
+    public EvaluationReportWriter() {
+        this(new ObjectMapper());
+    }
 
     public EvaluationReportWriter(ObjectMapper mapper) {
         this.mapper = Objects.requireNonNull(mapper, "mapper");
@@ -25,8 +27,11 @@ public final class EvaluationReportWriter {
 
     public String toJsonLines(EvaluationReport report) {
         return report.results().stream().map(result -> {
-            try { return mapper.writeValueAsString(result); }
-            catch (JsonProcessingException e) { throw new IllegalStateException("cannot serialize evaluation result", e); }
+            try {
+                return mapper.writeValueAsString(result);
+            } catch (JsonProcessingException e) {
+                throw new IllegalStateException("cannot serialize evaluation result", e);
+            }
         }).collect(Collectors.joining("\n"));
     }
 }

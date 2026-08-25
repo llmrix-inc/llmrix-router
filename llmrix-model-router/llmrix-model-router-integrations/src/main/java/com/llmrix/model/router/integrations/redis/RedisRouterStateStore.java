@@ -4,11 +4,11 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
-import com.llmrix.model.router.core.candidate.ModelLimits;
-import com.llmrix.model.router.core.execution.HealthAttempt;
-import com.llmrix.model.router.core.execution.HealthState;
-import com.llmrix.model.router.core.execution.QuotaState;
-import com.llmrix.model.router.core.execution.RouterStateStore;
+import com.llmrix.model.router.core.model.ModelLimits;
+import com.llmrix.model.router.core.state.HealthAttempt;
+import com.llmrix.model.router.core.state.HealthState;
+import com.llmrix.model.router.core.state.QuotaState;
+import com.llmrix.model.router.core.state.RouterStateStore;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -16,7 +16,9 @@ import java.util.Base64;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Redis-backed atomic health, lease and fixed-window quota state. */
+/**
+ * Redis-backed atomic health, lease and fixed-window quota state.
+ */
 public final class RedisRouterStateStore implements RouterStateStore, AutoCloseable {
     private static final String HEALTH_READ = "redis.call('ZREMRANGEBYSCORE',KEYS[2],'-inf',ARGV[1]); "
             + "return {redis.call('HGET',KEYS[1],'cooldown_until') or '0',redis.call('ZCARD',KEYS[2]),"
@@ -79,15 +81,18 @@ public final class RedisRouterStateStore implements RouterStateStore, AutoClosea
         this.quotaWindow = positive(quotaWindow, "quotaWindow");
     }
 
-    @Override public HealthState health(String namespace, String candidateId) {
+    @Override
+    public HealthState health(String namespace, String candidateId) {
         return new RedisHealth(base(namespace, candidateId));
     }
 
-    @Override public QuotaState quota(String namespace, String candidateId, ModelLimits limits) {
+    @Override
+    public QuotaState quota(String namespace, String candidateId, ModelLimits limits) {
         return new RedisQuota(base(namespace, candidateId) + ":quota", limits);
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         if (ownsConnection) connection.close();
         if (ownedClient != null) ownedClient.shutdown();
     }
@@ -99,23 +104,56 @@ public final class RedisRouterStateStore implements RouterStateStore, AutoClosea
     private final class RedisHealth implements HealthState {
         private final String state;
         private final String leases;
-        private RedisHealth(String base) { state = base + ":health"; leases = base + ":leases"; }
 
-        @Override public boolean available(long nowMillis) { return read(nowMillis).cooldownUntil <= nowMillis; }
-        @Override public int inFlight() { return Math.toIntExact(read(System.currentTimeMillis()).inFlight); }
-        @Override public double latencyEwmaMillis() { return read(System.currentTimeMillis()).latencyMicros / 1000d; }
-        @Override public void begin() { throw new UnsupportedOperationException("use beginAttempt for Redis health state"); }
-        @Override public void cancel() { throw new UnsupportedOperationException("use HealthAttempt.cancel"); }
-        @Override public void success(long durationNanos) { throw new UnsupportedOperationException("use HealthAttempt.success"); }
-        @Override public boolean failure(long durationNanos, int threshold, Duration cooldown) {
+        private RedisHealth(String base) {
+            state = base + ":health";
+            leases = base + ":leases";
+        }
+
+        @Override
+        public boolean available(long nowMillis) {
+            return read(nowMillis).cooldownUntil <= nowMillis;
+        }
+
+        @Override
+        public int inFlight() {
+            return Math.toIntExact(read(System.currentTimeMillis()).inFlight);
+        }
+
+        @Override
+        public double latencyEwmaMillis() {
+            return read(System.currentTimeMillis()).latencyMicros / 1000d;
+        }
+
+        @Override
+        public void begin() {
+            throw new UnsupportedOperationException("use beginAttempt for Redis health state");
+        }
+
+        @Override
+        public void cancel() {
+            throw new UnsupportedOperationException("use HealthAttempt.cancel");
+        }
+
+        @Override
+        public void success(long durationNanos) {
+            throw new UnsupportedOperationException("use HealthAttempt.success");
+        }
+
+        @Override
+        public boolean failure(long durationNanos, int threshold, Duration cooldown) {
             throw new UnsupportedOperationException("use HealthAttempt.failure");
         }
-        @Override public HealthAttempt beginAttempt() {
+
+        @Override
+        public HealthAttempt beginAttempt() {
             HealthAttempt attempt = tryBeginAttempt(null);
             if (attempt == null) throw new IllegalStateException("unlimited Redis lease acquisition failed");
             return attempt;
         }
-        @Override public HealthAttempt tryBeginAttempt(Integer maxConcurrency) {
+
+        @Override
+        public HealthAttempt tryBeginAttempt(Integer maxConcurrency) {
             String id = UUID.randomUUID().toString();
             long now = System.currentTimeMillis();
             long acquired = redis.eval(HEALTH_BEGIN, ScriptOutputType.INTEGER, new String[]{leases},
@@ -124,19 +162,30 @@ public final class RedisRouterStateStore implements RouterStateStore, AutoClosea
                     Long.toString(leaseTtl.toMillis() * 2));
             if (acquired == 0) return null;
             return new HealthAttempt() {
-                @Override public void cancel() { redis.zrem(leases, id); }
-                @Override public void success(long durationNanos) { settle(id, durationNanos, "success", 1, 0); }
-                @Override public boolean failure(long durationNanos, int threshold, Duration cooldown) {
+                @Override
+                public void cancel() {
+                    redis.zrem(leases, id);
+                }
+
+                @Override
+                public void success(long durationNanos) {
+                    settle(id, durationNanos, "success", 1, 0);
+                }
+
+                @Override
+                public boolean failure(long durationNanos, int threshold, Duration cooldown) {
                     return settle(id, durationNanos, "failure", threshold,
                             System.currentTimeMillis() + cooldown.toMillis()) == 1;
                 }
             };
         }
+
         private long settle(String id, long durationNanos, String outcome, int threshold, long cooldownUntil) {
             return redis.eval(HEALTH_SETTLE, ScriptOutputType.INTEGER, new String[]{state, leases},
                     id, Long.toString(Math.max(0, durationNanos / 1_000)), outcome,
                     Integer.toString(threshold), Long.toString(cooldownUntil));
         }
+
         private HealthSnapshot read(long now) {
             java.util.List<?> values = redis.eval(HEALTH_READ, ScriptOutputType.MULTI,
                     new String[]{state, leases}, Long.toString(now));
@@ -147,18 +196,31 @@ public final class RedisRouterStateStore implements RouterStateStore, AutoClosea
     private final class RedisQuota implements QuotaState {
         private final String key;
         private final ModelLimits limits;
-        private RedisQuota(String key, ModelLimits limits) { this.key = key; this.limits = limits; }
-        @Override public String rejectionReason(int estimatedInputTokens) {
+
+        private RedisQuota(String key, ModelLimits limits) {
+            this.key = key;
+            this.limits = limits;
+        }
+
+        @Override
+        public String rejectionReason(int estimatedInputTokens) {
             String reason = acquire(estimatedInputTokens, false);
             return reason.isEmpty() ? null : reason;
         }
-        @Override public boolean tryAcquire(int estimatedInputTokens) { return acquire(estimatedInputTokens, true).isEmpty(); }
-        @Override public void recordOutputTokens(long outputTokens) {
+
+        @Override
+        public boolean tryAcquire(int estimatedInputTokens) {
+            return acquire(estimatedInputTokens, true).isEmpty();
+        }
+
+        @Override
+        public void recordOutputTokens(long outputTokens) {
             if (outputTokens <= 0) return;
             redis.eval(QUOTA_OUTPUT, ScriptOutputType.INTEGER, new String[]{key},
                     Long.toString(System.currentTimeMillis()), Long.toString(quotaWindow.toMillis()),
                     Long.toString(outputTokens));
         }
+
         private String acquire(int inputTokens, boolean mutate) {
             return redis.eval(QUOTA_ACQUIRE, ScriptOutputType.VALUE, new String[]{key},
                     Long.toString(System.currentTimeMillis()), Long.toString(quotaWindow.toMillis()),
@@ -167,17 +229,48 @@ public final class RedisRouterStateStore implements RouterStateStore, AutoClosea
         }
     }
 
-    private record HealthSnapshot(long cooldownUntil, long inFlight, long latencyMicros) { }
-    private static long number(Object value) { return Long.parseLong(String.valueOf(value)); }
-    private static String value(Long limit) { return limit == null ? "-1" : limit.toString(); }
+    private static final class HealthSnapshot {
+        private final long cooldownUntil;
+        private final long inFlight;
+        private final long latencyMicros;
+
+        private HealthSnapshot(long cooldownUntil, long inFlight, long latencyMicros) {
+            this.cooldownUntil = cooldownUntil;
+            this.inFlight = inFlight;
+            this.latencyMicros = latencyMicros;
+        }
+
+        private long cooldownUntil() {
+            return cooldownUntil;
+        }
+
+        private long inFlight() {
+            return inFlight;
+        }
+
+        private long latencyMicros() {
+            return latencyMicros;
+        }
+    }
+
+    private static long number(Object value) {
+        return Long.parseLong(String.valueOf(value));
+    }
+
+    private static String value(Long limit) {
+        return limit == null ? "-1" : limit.toString();
+    }
+
     private static String encode(String value) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(
                 requireText(value, "state key component").getBytes(StandardCharsets.UTF_8));
     }
+
     private static String requireText(String value, String name) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(name + " must not be blank");
         return value;
     }
+
     private static Duration positive(Duration value, String name) {
         if (value == null || value.isZero() || value.isNegative()) {
             throw new IllegalArgumentException(name + " must be positive");

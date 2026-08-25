@@ -12,7 +12,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/** Loads a versioned Fugu action manifest and selects the highest-scoring eligible ONNX action. */
+/**
+ * Loads a versioned Fugu action manifest and selects the highest-scoring eligible ONNX action.
+ */
 public final class OnnxFuguRouter implements FuguRouter, AutoCloseable {
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -42,7 +44,8 @@ public final class OnnxFuguRouter implements FuguRouter, AutoCloseable {
     OnnxFuguRouter(List<FuguAction> actions, int featureCount,
                    OnnxFuguFeatureExtractor features, FloatInferenceEngine engine) {
         if (actions == null || actions.isEmpty()) throw new IllegalArgumentException("actions must not be empty");
-        if (new HashSet<>(actions).size() != actions.size()) throw new IllegalArgumentException("actions must be unique");
+        if (new HashSet<>(actions).size() != actions.size())
+            throw new IllegalArgumentException("actions must be unique");
         if (featureCount < 1) throw new IllegalArgumentException("featureCount must be positive");
         this.actions = List.copyOf(actions);
         this.featureCount = featureCount;
@@ -50,7 +53,8 @@ public final class OnnxFuguRouter implements FuguRouter, AutoCloseable {
         this.engine = Objects.requireNonNull(engine, "engine");
     }
 
-    @Override public FuguAction route(FuguState state) {
+    @Override
+    public FuguAction route(FuguState state) {
         float[] input = Objects.requireNonNull(features.extract(state), "feature extractor returned null");
         if (input.length != featureCount) throw new IllegalArgumentException(
                 "Fugu feature size " + input.length + " does not match manifest " + featureCount);
@@ -74,7 +78,10 @@ public final class OnnxFuguRouter implements FuguRouter, AutoCloseable {
         return best;
     }
 
-    @Override public void close() { engine.close(); }
+    @Override
+    public void close() {
+        engine.close();
+    }
 
     private static void validate(OnnxFuguPolicyManifest manifest) {
         if (manifest.version() != 1) throw new IllegalArgumentException(
@@ -89,7 +96,8 @@ public final class OnnxFuguRouter implements FuguRouter, AutoCloseable {
         Set<FuguAction> unique = new HashSet<>();
         manifest.actions().forEach(action -> {
             FuguAction converted = new FuguAction(action.candidateId(), action.role());
-            if (!unique.add(converted)) throw new IllegalArgumentException("duplicate Fugu policy action: " + converted);
+            if (!unique.add(converted))
+                throw new IllegalArgumentException("duplicate Fugu policy action: " + converted);
         });
     }
 }

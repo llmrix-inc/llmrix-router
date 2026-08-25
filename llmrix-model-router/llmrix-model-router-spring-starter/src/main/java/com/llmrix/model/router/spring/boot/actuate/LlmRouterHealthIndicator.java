@@ -1,6 +1,6 @@
 package com.llmrix.model.router.spring.boot.actuate;
 
-import com.llmrix.model.router.core.api.RoutedChatModels;
+import com.llmrix.model.router.core.engine.RoutedChatModels;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.actuate.health.Status;
@@ -23,11 +23,11 @@ public final class LlmRouterHealthIndicator implements HealthIndicator {
         for (String routeId : models.routeIds().stream().sorted().toList()) {
             Map<String, String> candidates = new LinkedHashMap<>();
             boolean routeAvailable = false;
-            for (var candidate : models.get(routeId).candidates()) {
+            for (var candidate : models.get(routeId).targets()) {
                 String state;
                 if (!candidate.available()) state = "cooldown";
-                else if (candidate.candidate().limits().maxConcurrency() != null
-                        && candidate.inFlight() >= candidate.candidate().limits().maxConcurrency()) {
+                else if (candidate.target().limits().maxConcurrency() != null
+                        && candidate.inFlight() >= candidate.target().limits().maxConcurrency()) {
                     state = "saturated";
                 } else {
                     state = "available";

@@ -7,25 +7,28 @@ import com.llmrix.model.router.spring.boot.observability.MicrometerRouterObserva
 import com.llmrix.model.router.spring.boot.observability.PromptSanitizer;
 import com.llmrix.model.router.spring.boot.observability.RouterMetricsBinder;
 import com.llmrix.model.router.spring.boot.properties.LlmRouterProperties;
-import com.llmrix.model.router.spring.boot.provider.CandidateFactoryRegistry;
+import com.llmrix.model.router.spring.boot.provider.ModelTargetRegistry;
 import com.llmrix.model.router.spring.boot.routing.RoutingStrategyRegistry;
 
-import com.llmrix.model.router.core.api.RoutedChatModel;
-import com.llmrix.model.router.core.api.RoutedChatModels;
-import com.llmrix.model.router.core.candidate.Candidate;
+import com.llmrix.model.router.core.engine.RoutedChatModel;
+import com.llmrix.model.router.core.engine.RoutedChatModels;
+import com.llmrix.model.router.core.engine.RoutedModelOperations;
+import com.llmrix.model.router.core.engine.RoutedModelOperationsRegistry;
 import com.llmrix.model.router.core.routing.RoutingStrategy;
-import com.llmrix.model.router.core.execution.InMemoryRouterStateStore;
-import com.llmrix.model.router.core.execution.RouterStateStore;
-import com.llmrix.model.router.core.execution.ExecutionPolicy;
-import com.llmrix.model.router.core.candidate.ModelLimits;
-import com.llmrix.model.router.core.candidate.ModelPricing;
-import com.llmrix.model.router.core.spi.RouterListener;
+import com.llmrix.model.router.core.state.InMemoryRouterStateStore;
+import com.llmrix.model.router.core.state.RouterStateStore;
+import com.llmrix.model.router.core.engine.ExecutionPolicy;
+import com.llmrix.model.router.core.event.RouterListener;
+import com.llmrix.model.router.core.runtime.LlmRouter;
+import com.llmrix.model.router.core.runtime.LlmRouterBuilder;
 import com.llmrix.model.router.integrations.fugu.FuguListener;
+import com.llmrix.model.router.core.spi.auth.ProviderAuthenticator;
+import com.llmrix.model.router.core.spi.cost.ModelPricingResolver;
+import com.llmrix.model.router.core.spi.provider.ModelProvider;
 import com.llmrix.model.router.integrations.redis.RedisRouterStateStore;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
-import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -40,10 +43,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.beans.factory.annotation.Qualifier;
 
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 @AutoConfiguration
@@ -52,12 +55,6 @@ import java.util.concurrent.ExecutorService;
 @EnableConfigurationProperties(LlmRouterProperties.class)
 public class LlmRouterAutoConfiguration {
     private static final System.Logger LOGGER = System.getLogger(LlmRouterAutoConfiguration.class.getName());
-
-    @Bean
-    @ConditionalOnMissingBean
-    CandidateFactoryRegistry candidateFactoryRegistry(BeanFactory beanFactory) {
-        return new CandidateFactoryRegistry(beanFactory);
-    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -129,82 +126,131 @@ public class LlmRouterAutoConfiguration {
     }
 
     @Bean(destroyMethod = "close")
-    @ConditionalOnMissingBean
-    RoutedChatModels routedChatModels(
+    @ConditionalOnMissingBean({LlmRouter.class, RoutedChatModels.class})
+    LlmRouter llmRouter(
             LlmRouterProperties properties,
-            CandidateFactoryRegistry candidateFactories,
             RoutingStrategyRegistry strategies,
             RouterStateStore stateStore,
+            ObjectProvider<ModelProvider> providers,
+            ObjectProvider<ProviderAuthenticator> authenticators,
+            ObjectProvider<ModelPricingResolver> pricingResolvers,
             ObjectProvider<RouterListener> listenerProvider,
             @Qualifier("llmRouterExecutor") ObjectProvider<ExecutorService> executorProvider) {
         validateRoot(properties);
-        Map<String, Candidate> candidates = createCandidates(properties, candidateFactories);
-        Map<String, RoutedChatModel> routes = new LinkedHashMap<>();
-        RouterListener listener = listenerProvider.getIfAvailable(() -> RouterListener.NOOP);
+        LlmRouterBuilder builder = LlmRouter.builder()
+                .defaultRoute(properties.getDefaultRoute())
+                .failFast(properties.isFailFast())
+                .timeout(properties.getExecution().getTimeout())
+                .maxRetries(properties.getExecution().getMaxRetries())
+                .retryDelay(properties.getExecution().getRetryDelay())
+                .failureThreshold(properties.getExecution().getFailureThreshold())
+                .cooldown(properties.getExecution().getCooldown())
+                .firstTokenTimeout(properties.getExecution().getFirstTokenTimeout())
+                .streamIdleTimeout(properties.getExecution().getStreamIdleTimeout())
+                .stateStore(stateStore)
+                .listener(listenerProvider.getIfAvailable(() -> RouterListener.NOOP));
+        providers.orderedStream().forEach(builder::provider);
+        authenticators.orderedStream().forEach(builder::authenticator);
+        pricingResolvers.orderedStream().forEach(builder::pricingResolver);
+        strategies.all().forEach(builder::strategy);
 
-        properties.getRoutes().forEach((routeId, route) -> {
-            try {
-                validateRoute(routeId, route);
-                RoutedChatModel.Builder builder = RoutedChatModel.builder()
-                        .strategy(route.getStrategy(), strategies.get(route.getStrategy()))
-                        .fallbacks(route.getFallbacks().toArray(String[]::new))
-                        .timeout(properties.getExecution().getTimeout())
-                        .maxRetries(properties.getExecution().getMaxRetries())
-                        .retryDelay(properties.getExecution().getRetryDelay())
-                        .failureThreshold(properties.getExecution().getFailureThreshold())
-                        .cooldown(properties.getExecution().getCooldown())
-                        .firstTokenTimeout(properties.getExecution().getFirstTokenTimeout())
-                        .streamIdleTimeout(properties.getExecution().getStreamIdleTimeout())
-                        .stateStore(stateStore)
-                        .stateNamespace(routeId)
-                        .listener(listener);
-                ExecutorService executor = executorProvider.getIfAvailable();
-                if (executor != null) {
-                    builder.executor(properties.getObservability().isContextPropagationEnabled()
-                            ? new ContextPropagatingExecutorService(executor) : executor);
-                }
-                Set<String> routeCandidateIds = new LinkedHashSet<>(route.getCandidates());
-                routeCandidateIds.addAll(route.getFallbacks());
-                for (String candidateId : routeCandidateIds) {
-                    Candidate candidate = candidates.get(candidateId);
-                    if (candidate == null) throw new IllegalArgumentException("route " + routeId + " references unknown candidate " + candidateId);
-                    builder.candidate(candidate);
-                }
-                routes.put(routeId, builder.build());
-            } catch (RuntimeException error) {
-                if (properties.isFailFast()) throw error;
-                LOGGER.log(System.Logger.Level.WARNING,
-                        "Skipping invalid llmrix.model.router route {0}: {1}", routeId, error.getMessage());
-            }
-        });
-        if (routes.isEmpty()) throw new IllegalArgumentException("no valid llmrix.model.router routes are configured");
-        if (!routes.containsKey(properties.getDefaultRoute())) {
-            throw new IllegalArgumentException("default route does not exist: " + properties.getDefaultRoute());
+        ExecutorService executor = executorProvider.getIfAvailable();
+        if (executor != null) {
+            builder.executor(properties.getObservability().isContextPropagationEnabled()
+                    ? new ContextPropagatingExecutorService(executor) : executor);
         }
-        return new RoutedChatModels(routes);
+        properties.getIntegrations().forEach((id, integration) -> mapIntegration(builder, id, integration));
+        properties.getRoutes().forEach((id, route) -> builder.route(id, configured -> {
+            if (route.getModels() == null || route.getModels().isEmpty()) {
+                throw new IllegalArgumentException("route " + id + " models must not be empty");
+            }
+            List<String> modelIds = route.getModels().stream()
+                    .map(reference -> routeModelId(id, reference))
+                    .toList();
+            configured.strategy(route.getStrategy()).models(modelIds.toArray(String[]::new));
+        }));
+        return builder.build();
     }
 
     @Bean
+    @ConditionalOnBean(LlmRouter.class)
+    @ConditionalOnMissingBean
+    ModelTargetRegistry modelTargetRegistry(LlmRouter router) {
+        return new ModelTargetRegistry(router.targets());
+    }
+
+    @Bean(destroyMethod = "")
+    @ConditionalOnBean(LlmRouter.class)
+    @ConditionalOnMissingBean
+    RoutedChatModels routedChatModels(LlmRouter router) {
+        return router.chatRoutes();
+    }
+
+    @Bean(destroyMethod = "")
+    @ConditionalOnBean(LlmRouter.class)
+    @ConditionalOnMissingBean
+    RoutedModelOperationsRegistry routedModelOperationsRegistry(LlmRouter router) {
+        return router.operationRoutes();
+    }
+
+    @Bean(destroyMethod = "")
+    @Primary
+    @ConditionalOnBean(RoutedModelOperationsRegistry.class)
+    @ConditionalOnMissingBean(RoutedModelOperations.class)
+    RoutedModelOperations routedModelOperations(
+            LlmRouterProperties properties, RoutedModelOperationsRegistry routes) {
+        return routes.get(properties.getDefaultRoute());
+    }
+
+    @Bean(destroyMethod = "")
     @Primary
     @ConditionalOnMissingBean(RoutedChatModel.class)
     RoutedChatModel routedChatModel(LlmRouterProperties properties, RoutedChatModels models) {
         return models.get(properties.getDefaultRoute());
     }
 
-    private static Map<String, Candidate> createCandidates(
-            LlmRouterProperties properties, CandidateFactoryRegistry candidateFactories) {
-        Map<String, Candidate> candidates = new LinkedHashMap<>();
-        properties.getCandidates().forEach((id, candidateProperties) -> {
-            try {
-                validateCandidate(id, candidateProperties);
-                candidates.put(id, candidateFactories.create(id, candidateProperties));
-            } catch (RuntimeException error) {
-                if (properties.isFailFast()) throw error;
-                LOGGER.log(System.Logger.Level.WARNING,
-                        "Skipping invalid llmrix.model.router candidate {0}: {1}", id, error.getMessage());
+    private static void mapIntegration(
+            LlmRouterBuilder router, String id, LlmRouterProperties.Integration integration) {
+        router.integration(id, configured -> {
+            configured.provider(integration.getProvider())
+                    .apiKey(integration.getApiKey())
+                    .authenticator(integration.getAuthenticator())
+                    .options(integration.getOptions());
+            if (hasText(integration.getBaseUrl())) configured.baseUrl(integration.getBaseUrl());
+            if (integration.getApiMode() == LlmRouterProperties.OpenAiApiMode.RESPONSES) configured.responsesApi();
+            if (hasText(integration.getSiteUrl())) configured.siteUrl(integration.getSiteUrl());
+            if (hasText(integration.getAppName())) configured.appName(integration.getAppName());
+            if (integration.getModels() == null || integration.getModels().isEmpty()) {
+                throw new IllegalArgumentException("integration " + id + " models must not be empty");
             }
+            Set<String> modelNames = new HashSet<>();
+            integration.getModels().forEach(model -> {
+                if (model == null) throw new IllegalArgumentException("integration " + id + " model must not be null");
+                String modelName = requireText(model.getName(), "integration " + id + " model name");
+                if (!modelNames.add(modelName)) {
+                    throw new IllegalArgumentException("duplicate model in integration " + id + ": " + modelName);
+                }
+                configured.model(modelName, target -> target
+                        .capabilities(model.getCapabilities().stream()
+                                .map(LlmRouterAutoConfiguration::capability)
+                                .toArray(com.llmrix.model.router.core.model.Capability[]::new))
+                        .maxInputTokens(model.getMaxInputTokens())
+                        .pricing(model.getInputCostPerMillion(), model.getOutputCostPerMillion())
+                        .limits(model.getLimits().getRequestsPerMinute(),
+                                model.getLimits().getTokensPerMinute(),
+                                model.getLimits().getMaxConcurrency())
+                        .priority(model.getPriority())
+                        .weight(model.getWeight())
+                        .metadata(model.getMetadata())
+                        .extensions(model.getExtensions()));
+            });
         });
-        return candidates;
+    }
+
+    private static com.llmrix.model.router.core.model.Capability capability(String value) {
+        if (!hasText(value)) throw new IllegalArgumentException("model capability must not be blank");
+        return com.llmrix.model.router.core.model.Capability.valueOf(
+                value.replace('-', '_').toUpperCase(java.util.Locale.ROOT));
     }
 
     private static void validateRoot(LlmRouterProperties properties) {
@@ -214,8 +260,8 @@ public class LlmRouterAutoConfiguration {
         if (properties.getRoutes() == null || properties.getRoutes().isEmpty()) {
             throw new IllegalArgumentException("llmrix.model.router.routes must not be empty");
         }
-        if (properties.getCandidates() == null || properties.getCandidates().isEmpty()) {
-            throw new IllegalArgumentException("llmrix.model.router.candidates must not be empty");
+        if (properties.getIntegrations() == null || properties.getIntegrations().isEmpty()) {
+            throw new IllegalArgumentException("llmrix.model.router.integrations must not be empty");
         }
         if (properties.getDefaultRoute() == null || properties.getDefaultRoute().isBlank()) {
             throw new IllegalArgumentException("llmrix.model.router.default-route must not be blank");
@@ -226,48 +272,29 @@ public class LlmRouterAutoConfiguration {
                 execution.getFailureThreshold(), execution.getCooldown(), execution.getFirstTokenTimeout(),
                 execution.getStreamIdleTimeout());
         LlmRouterProperties.Observability observability = properties.getObservability();
-        if (observability == null) throw new IllegalArgumentException("llmrix.model.router.observability must not be null");
+        if (observability == null)
+            throw new IllegalArgumentException("llmrix.model.router.observability must not be null");
         if (observability.getPromptMaxChars() < 1) throw new IllegalArgumentException(
                 "llmrix.model.router.observability.prompt-max-chars must be > 0");
         if (observability.getPromptRoutes() == null) throw new IllegalArgumentException(
                 "llmrix.model.router.observability.prompt-routes must not be null");
     }
 
-    private static void validateCandidate(String id, LlmRouterProperties.Candidate properties) {
-        if (id == null || id.isBlank()) throw new IllegalArgumentException("candidate id must not be blank");
-        if (properties == null) throw new IllegalArgumentException("candidate " + id + " configuration must not be null");
-        String provider = properties.getProvider();
-        if (provider == null || provider.isBlank()) throw new IllegalArgumentException("candidate " + id + " provider is required");
-        if (hasText(properties.getApiKey()) && hasText(properties.getBeanName())) {
-            throw new IllegalArgumentException("candidate " + id + " cannot configure both api-key and bean-name");
-        }
-        if (properties.getWeight() < 0) throw new IllegalArgumentException("candidate " + id + " weight must be >= 0");
-        if (properties.getExtensions() == null) throw new IllegalArgumentException("candidate " + id + " extensions must not be null");
-        if (provider.equals("openai-compatible") && !hasText(properties.getModelName())) {
-            throw new IllegalArgumentException("candidate " + id + " model-name is required for openai-compatible");
-        }
-        if ((provider.equals("bean") || provider.equals("spring-ai-bean") || provider.equals("langchain4j-bean"))
-                && !hasText(properties.getBeanName())) {
-            throw new IllegalArgumentException("candidate " + id + " bean-name is required for provider " + provider);
-        }
-        new ModelPricing(properties.getInputCostPerMillion(), properties.getOutputCostPerMillion());
-        LlmRouterProperties.Limits limits = properties.getLimits();
-        if (limits == null) throw new IllegalArgumentException("candidate " + id + " limits must not be null");
-        new ModelLimits(limits.getRequestsPerMinute(), limits.getTokensPerMinute(), limits.getMaxConcurrency());
-    }
-
-    private static void validateRoute(String id, LlmRouterProperties.Route route) {
-        if (id == null || id.isBlank()) throw new IllegalArgumentException("route id must not be blank");
-        if (route == null) throw new IllegalArgumentException("route " + id + " configuration must not be null");
-        if (route.getCandidates() == null || route.getCandidates().isEmpty()) {
-            throw new IllegalArgumentException("route " + id + " candidates must not be empty");
-        }
-        if (route.getFallbacks() == null) throw new IllegalArgumentException("route " + id + " fallbacks must not be null");
-        if (!hasText(route.getStrategy())) throw new IllegalArgumentException("route " + id + " strategy must not be blank");
-    }
-
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static String requireText(String value, String name) {
+        if (!hasText(value)) throw new IllegalArgumentException(name + " must not be blank");
+        return value;
+    }
+
+    private static String routeModelId(String routeId, LlmRouterProperties.ModelReference reference) {
+        if (reference == null) throw new IllegalArgumentException("route " + routeId + " model must not be null");
+        String integration = requireText(reference.getIntegration(),
+                "route " + routeId + " model integration").toLowerCase(java.util.Locale.ROOT);
+        String model = requireText(reference.getModel(), "route " + routeId + " model name");
+        return integration + "/" + model;
     }
 
     @Configuration(proxyBeanMethods = false)

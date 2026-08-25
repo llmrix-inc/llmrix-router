@@ -12,6 +12,7 @@ public class OrionModelClientProperties {
     private String baseUrl = "http://localhost:8080/v1";
     private String apiKey;
     private String defaultModel;
+    private Defaults defaults = new Defaults();
     private Duration connectTimeout = Duration.ofSeconds(10);
     private Duration timeout = Duration.ofSeconds(60);
     private Map<String, String> headers = new LinkedHashMap<>();
@@ -24,10 +25,31 @@ public class OrionModelClientProperties {
     public void setApiKey(String apiKey) { this.apiKey = apiKey; }
     public String getDefaultModel() { return defaultModel; }
     public void setDefaultModel(String defaultModel) { this.defaultModel = defaultModel; }
+    public Defaults getDefaults() { return defaults; }
+    public void setDefaults(Defaults defaults) { this.defaults = defaults; }
     public Duration getConnectTimeout() { return connectTimeout; }
     public void setConnectTimeout(Duration connectTimeout) { this.connectTimeout = connectTimeout; }
     public Duration getTimeout() { return timeout; }
     public void setTimeout(Duration timeout) { this.timeout = timeout; }
     public Map<String, String> getHeaders() { return headers; }
     public void setHeaders(Map<String, String> headers) { this.headers = headers; }
+
+    public static class Defaults {
+        private String chat;
+        private String embedding;
+        private String audio;
+        private String image;
+        private String video;
+
+        public String getChat() { return chat; }
+        public void setChat(String chat) { this.chat = chat; }
+        public String getEmbedding() { return embedding; }
+        public void setEmbedding(String embedding) { this.embedding = embedding; }
+        public String getAudio() { return audio; }
+        public void setAudio(String audio) { this.audio = audio; }
+        public String getImage() { return image; }
+        public void setImage(String image) { this.image = image; }
+        public String getVideo() { return video; }
+        public void setVideo(String video) { this.video = video; }
+    }
 }

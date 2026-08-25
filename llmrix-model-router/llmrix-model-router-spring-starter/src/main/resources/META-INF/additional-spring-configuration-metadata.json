@@ -1,0 +1,77 @@
+{
+  "properties": [
+    {
+      "name": "llmrix.model.router.http.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enables the OpenAI-compatible HTTP and SSE endpoints.",
+      "defaultValue": false
+    },
+    {
+      "name": "llmrix.model.router.http.auth.mode",
+      "type": "java.lang.String",
+      "description": "HTTP authentication mode: api-key or none.",
+      "defaultValue": "api-key"
+    },
+    {
+      "name": "llmrix.model.router.http.auth.bootstrap-key",
+      "type": "java.lang.String",
+      "description": "Bootstrap Bearer key used by the default HTTP verifier."
+    },
+    {
+      "name": "llmrix.model.router.routes.*.strategy",
+      "type": "java.lang.String",
+      "description": "Routing strategy ID for this route."
+    },
+    {
+      "name": "llmrix.model.router.routes.*.models",
+      "type": "java.util.List<com.llmrix.model.router.spring.boot.properties.LlmRouterProperties$ModelReference>",
+      "description": "Ordered model references available to this route."
+    },
+    {
+      "name": "llmrix.model.router.routes.*.models[].integration",
+      "type": "java.lang.String",
+      "description": "Integration ID containing the routed model."
+    },
+    {
+      "name": "llmrix.model.router.routes.*.models[].model",
+      "type": "java.lang.String",
+      "description": "Model name within the integration."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.provider",
+      "type": "java.lang.String",
+      "description": "Model provider component ID."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.base-url",
+      "type": "java.lang.String",
+      "description": "Provider API base URL shared by all models in the integration."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.api-key",
+      "type": "java.lang.String",
+      "description": "Provider credential passed to the configured authenticator."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.authenticator",
+      "type": "java.lang.String",
+      "description": "ProviderAuthenticator component ID.",
+      "defaultValue": "bearer"
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models",
+      "type": "java.util.List<com.llmrix.model.router.spring.boot.properties.LlmRouterProperties$Model>",
+      "description": "Models exposed by this provider integration. Each item must define a unique name."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models[].name",
+      "type": "java.lang.String",
+      "description": "Provider model name."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models[].capabilities",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Capabilities implemented by the provider model."
+    }
+  ]
+}

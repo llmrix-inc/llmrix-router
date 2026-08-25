@@ -1,1 +1,2 @@
 com.llmrix.model.router.spring.boot.autoconfigure.LlmRouterAutoConfiguration
+com.llmrix.model.router.spring.boot.http.config.LlmRouterHttpAutoConfiguration

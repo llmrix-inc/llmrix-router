@@ -1,0 +1,110 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Tag and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Extract version from pom.xml
+        id: extract_version
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+          echo "Tag name: v$VERSION"
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists. Skipping release."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag $TAG_NAME does not exist. Will create release."
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract changelog for version
+        id: extract_changelog
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.extract_version.outputs.version }}"
+          TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
+          CHANGELOG_FILE="CHANGELOG.md"
+          
+          # Extract the section for this version from CHANGELOG.md
+          # Pattern: ## [VERSION] - DATE
+          if [ -f "$CHANGELOG_FILE" ]; then
+            # Use awk to extract content between the version header and the next version header
+            CHANGELOG_CONTENT=$(awk -v ver="[$VERSION]" '
+              $0 ~ "^## " ver {found=1; next}
+              found && /^## / {exit}
+              found {print}
+            ' "$CHANGELOG_FILE" | sed '/^[[:space:]]*$/d')
+            
+            if [ -n "$CHANGELOG_CONTENT" ]; then
+              echo "Changelog found for version $VERSION"
+            else
+              echo "No changelog entry found for version $VERSION, using default message"
+              CHANGELOG_CONTENT="Release $TAG_NAME"
+            fi
+          else
+            echo "CHANGELOG.md not found, using default message"
+            CHANGELOG_CONTENT="Release $TAG_NAME"
+          fi
+          
+          # Write changelog to file for use in release step
+          echo "$CHANGELOG_CONTENT" > release_notes.md
+          
+          # Also set as output (multiline handling)
+          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Git tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+          git push origin "$TAG_NAME"
+          echo "Tag $TAG_NAME created and pushed successfully."
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.extract_version.outputs.tag_name }}
+          name: Release ${{ steps.extract_version.outputs.tag_name }}
+          body_path: release_notes.md
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release skipped
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "Release for tag ${{ steps.extract_version.outputs.tag_name }} was skipped because the tag already exists."

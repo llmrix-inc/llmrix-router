@@ -1,3 +1,13 @@
 package com.llmrix.model.router.integrations.fugu;
 
-public record FuguTurn(int index, FuguAction action, String response) {}
+import lombok.Value;
+import lombok.experimental.Accessors;
+
+@Value
+@Accessors(fluent = true)
+public class FuguTurn {
+    int index;
+    FuguAction action;
+    String response;
+}
+

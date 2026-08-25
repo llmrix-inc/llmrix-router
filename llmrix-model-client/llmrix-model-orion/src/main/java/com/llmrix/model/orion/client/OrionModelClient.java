@@ -5,11 +5,34 @@ import com.llmrix.model.orion.observation.OrionModelClientListener;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.llmrix.model.router.core.api.ChatModel;
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.ChatResponse;
-import com.llmrix.model.router.core.api.ChatChunk;
+import com.llmrix.model.router.core.api.audio.AudioModel;
+import com.llmrix.model.router.core.api.audio.AudioResponse;
+import com.llmrix.model.router.core.api.audio.AudioTextRequest;
+import com.llmrix.model.router.core.api.audio.SpeechRequest;
+import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatResponse;
+import com.llmrix.model.router.core.api.chat.ChatChunk;
+import com.llmrix.model.router.core.api.embedding.EmbeddingModel;
+import com.llmrix.model.router.core.api.embedding.EmbeddingRequest;
+import com.llmrix.model.router.core.api.embedding.EmbeddingResponse;
+import com.llmrix.model.router.core.api.image.ImageEditRequest;
+import com.llmrix.model.router.core.api.image.ImageModel;
+import com.llmrix.model.router.core.api.image.ImageRequest;
+import com.llmrix.model.router.core.api.image.ImageResponse;
+import com.llmrix.model.router.core.api.video.VideoContent;
+import com.llmrix.model.router.core.api.video.VideoLookupRequest;
+import com.llmrix.model.router.core.api.video.VideoModel;
+import com.llmrix.model.router.core.api.video.VideoRemixRequest;
+import com.llmrix.model.router.core.api.video.VideoRequest;
+import com.llmrix.model.router.core.api.video.VideoResponse;
+import com.llmrix.model.router.core.spi.auth.RequestAuthenticator;
+import com.llmrix.model.router.integrations.openai.OpenAiCompatibleAudioModel;
 import com.llmrix.model.router.integrations.openai.OpenAiCompatibleChatModel;
+import com.llmrix.model.router.integrations.openai.OpenAiCompatibleEmbeddingModel;
+import com.llmrix.model.router.integrations.openai.OpenAiCompatibleImageModel;
+import com.llmrix.model.router.integrations.openai.OpenAiCompatibleVideoModel;
+import com.llmrix.model.router.integrations.openai.OpenAiTransport;
 
 import java.io.IOException;
 import java.net.URI;
@@ -30,18 +53,30 @@ public final class OrionModelClient {
     private final URI baseUri;
     private final String apiKey;
     private final String defaultModel;
+    private final String defaultEmbeddingModel;
+    private final String defaultAudioModel;
+    private final String defaultImageModel;
+    private final String defaultVideoModel;
     private final Duration timeout;
     private final Map<String, String> headers;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final OrionModelClientListener listener;
-    private final Map<ModelKey, ChatModel> models = new ConcurrentHashMap<>();
+    private final Map<ModelKey, ChatModel> chatModels = new ConcurrentHashMap<>();
+    private final Map<String, EmbeddingModel> embeddingModels = new ConcurrentHashMap<>();
+    private final Map<String, AudioModel> audioModels = new ConcurrentHashMap<>();
+    private final Map<String, ImageModel> imageModels = new ConcurrentHashMap<>();
+    private final Map<String, VideoModel> videoModels = new ConcurrentHashMap<>();
 
     private OrionModelClient(Builder builder) {
         String baseUrl = requireText(builder.baseUrl, "baseUrl");
         this.baseUri = URI.create(baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
         this.apiKey = builder.apiKey;
         this.defaultModel = builder.defaultModel;
+        this.defaultEmbeddingModel = builder.defaultEmbeddingModel;
+        this.defaultAudioModel = builder.defaultAudioModel;
+        this.defaultImageModel = builder.defaultImageModel;
+        this.defaultVideoModel = builder.defaultVideoModel;
         this.timeout = requirePositive(builder.timeout, "timeout");
         this.headers = validateHeaders(builder.headers);
         this.objectMapper = builder.objectMapper == null ? new ObjectMapper() : builder.objectMapper;
@@ -99,6 +134,154 @@ public final class OrionModelClient {
         return chatModel(requireText(defaultModel, "defaultModel"), options).stream(request);
     }
 
+    public EmbeddingModel embeddingModel(String model) {
+        String modelName = requireText(model, "model");
+        return embeddingModels.computeIfAbsent(modelName, this::createEmbeddingModel);
+    }
+
+    public EmbeddingModel embeddingModel(String model, OrionModelRequestOptions options) {
+        Objects.requireNonNull(options, "options");
+        if (options.headers().isEmpty()) return embeddingModel(model);
+        return createEmbeddingModel(requireText(model, "model"), mergedHeaders(options));
+    }
+
+    public EmbeddingModel defaultEmbeddingModel() {
+        return embeddingModel(defaultRoute(defaultEmbeddingModel));
+    }
+
+    public EmbeddingResponse embed(EmbeddingRequest request) {
+        return defaultEmbeddingModel().embed(request);
+    }
+
+    public EmbeddingResponse embed(EmbeddingRequest request, OrionModelRequestOptions options) {
+        return embeddingModel(defaultRoute(defaultEmbeddingModel), options).embed(request);
+    }
+
+    public AudioModel audioModel(String model) {
+        String modelName = requireText(model, "model");
+        return audioModels.computeIfAbsent(modelName, this::createAudioModel);
+    }
+
+    public AudioModel audioModel(String model, OrionModelRequestOptions options) {
+        Objects.requireNonNull(options, "options");
+        if (options.headers().isEmpty()) return audioModel(model);
+        return createAudioModel(requireText(model, "model"), mergedHeaders(options));
+    }
+
+    public AudioModel defaultAudioModel() {
+        return audioModel(defaultRoute(defaultAudioModel));
+    }
+
+    public AudioResponse transcribe(AudioTextRequest request) {
+        return defaultAudioModel().transcribe(request);
+    }
+
+    public AudioResponse transcribe(AudioTextRequest request, OrionModelRequestOptions options) {
+        return audioModel(defaultRoute(defaultAudioModel), options).transcribe(request);
+    }
+
+    public AudioResponse translate(AudioTextRequest request) {
+        return defaultAudioModel().translate(request);
+    }
+
+    public AudioResponse translate(AudioTextRequest request, OrionModelRequestOptions options) {
+        return audioModel(defaultRoute(defaultAudioModel), options).translate(request);
+    }
+
+    public AudioResponse speech(SpeechRequest request) {
+        return defaultAudioModel().speech(request);
+    }
+
+    public AudioResponse speech(SpeechRequest request, OrionModelRequestOptions options) {
+        return audioModel(defaultRoute(defaultAudioModel), options).speech(request);
+    }
+
+    public ImageModel imageModel(String model) {
+        String modelName = requireText(model, "model");
+        return imageModels.computeIfAbsent(modelName, this::createImageModel);
+    }
+
+    public ImageModel imageModel(String model, OrionModelRequestOptions options) {
+        Objects.requireNonNull(options, "options");
+        if (options.headers().isEmpty()) return imageModel(model);
+        return createImageModel(requireText(model, "model"), mergedHeaders(options));
+    }
+
+    public ImageModel defaultImageModel() {
+        return imageModel(defaultRoute(defaultImageModel));
+    }
+
+    public ImageResponse generate(ImageRequest request) {
+        return defaultImageModel().generate(request);
+    }
+
+    public ImageResponse generate(ImageRequest request, OrionModelRequestOptions options) {
+        return imageModel(defaultRoute(defaultImageModel), options).generate(request);
+    }
+
+    public ImageResponse edit(ImageEditRequest request) {
+        return defaultImageModel().edit(request);
+    }
+
+    public ImageResponse edit(ImageEditRequest request, OrionModelRequestOptions options) {
+        return imageModel(defaultRoute(defaultImageModel), options).edit(request);
+    }
+
+    public VideoModel videoModel(String model) {
+        String modelName = requireText(model, "model");
+        return videoModels.computeIfAbsent(modelName, this::createVideoModel);
+    }
+
+    public VideoModel videoModel(String model, OrionModelRequestOptions options) {
+        Objects.requireNonNull(options, "options");
+        if (options.headers().isEmpty()) return videoModel(model);
+        return createVideoModel(requireText(model, "model"), mergedHeaders(options));
+    }
+
+    public VideoModel defaultVideoModel() {
+        return videoModel(defaultRoute(defaultVideoModel));
+    }
+
+    public VideoResponse create(VideoRequest request) {
+        return defaultVideoModel().create(request);
+    }
+
+    public VideoResponse create(VideoRequest request, OrionModelRequestOptions options) {
+        return videoModel(defaultRoute(defaultVideoModel), options).create(request);
+    }
+
+    public VideoResponse retrieve(VideoLookupRequest request) {
+        return defaultVideoModel().retrieve(request);
+    }
+
+    public VideoResponse retrieve(VideoLookupRequest request, OrionModelRequestOptions options) {
+        return videoModel(defaultRoute(defaultVideoModel), options).retrieve(request);
+    }
+
+    public VideoContent content(VideoLookupRequest request) {
+        return defaultVideoModel().content(request);
+    }
+
+    public VideoContent content(VideoLookupRequest request, OrionModelRequestOptions options) {
+        return videoModel(defaultRoute(defaultVideoModel), options).content(request);
+    }
+
+    public VideoResponse delete(VideoLookupRequest request) {
+        return defaultVideoModel().delete(request);
+    }
+
+    public VideoResponse delete(VideoLookupRequest request, OrionModelRequestOptions options) {
+        return videoModel(defaultRoute(defaultVideoModel), options).delete(request);
+    }
+
+    public VideoResponse remix(VideoRemixRequest request) {
+        return defaultVideoModel().remix(request);
+    }
+
+    public VideoResponse remix(VideoRemixRequest request, OrionModelRequestOptions options) {
+        return videoModel(defaultRoute(defaultVideoModel), options).remix(request);
+    }
+
     public List<RouterModel> models() {
         return models(OrionModelRequestOptions.DEFAULT);
     }
@@ -133,7 +316,7 @@ public final class OrionModelClient {
 
     private ChatModel model(String model, boolean responsesApi) {
         String modelName = requireText(model, "model");
-        return models.computeIfAbsent(new ModelKey(modelName, responsesApi), key -> createModel(key, headers));
+        return chatModels.computeIfAbsent(new ModelKey(modelName, responsesApi), key -> createModel(key, headers));
     }
 
     private ChatModel model(String model, boolean responsesApi, OrionModelRequestOptions options) {
@@ -161,8 +344,56 @@ public final class OrionModelClient {
             if (key.responsesApi()) builder.responsesApi();
             ChatModel model = builder.build();
             if (listener == OrionModelClientListener.NOOP) return model;
-            return new ObservingChatModel(model, listener, requestId(requestHeaders),
+        return new ObservingChatModel(model, listener, requestId(requestHeaders),
                     key.responsesApi() ? "responses" : "chat.completions", key.model());
+    }
+
+    private EmbeddingModel createEmbeddingModel(String model) {
+        return createEmbeddingModel(model, headers);
+    }
+
+    private EmbeddingModel createEmbeddingModel(String model, Map<String, String> requestHeaders) {
+        EmbeddingModel delegate = new OpenAiCompatibleEmbeddingModel(model, transport(requestHeaders));
+        return ObservingModelOperations.embedding(delegate, listener, requestId(requestHeaders), model);
+    }
+
+    private AudioModel createAudioModel(String model) {
+        return createAudioModel(model, headers);
+    }
+
+    private AudioModel createAudioModel(String model, Map<String, String> requestHeaders) {
+        AudioModel delegate = new OpenAiCompatibleAudioModel(model, transport(requestHeaders));
+        return ObservingModelOperations.audio(delegate, listener, requestId(requestHeaders), model);
+    }
+
+    private ImageModel createImageModel(String model) {
+        return createImageModel(model, headers);
+    }
+
+    private ImageModel createImageModel(String model, Map<String, String> requestHeaders) {
+        ImageModel delegate = new OpenAiCompatibleImageModel(model, transport(requestHeaders));
+        return ObservingModelOperations.image(delegate, listener, requestId(requestHeaders), model);
+    }
+
+    private VideoModel createVideoModel(String model) {
+        return createVideoModel(model, headers);
+    }
+
+    private VideoModel createVideoModel(String model, Map<String, String> requestHeaders) {
+        VideoModel delegate = new OpenAiCompatibleVideoModel(model, transport(requestHeaders), model);
+        return ObservingModelOperations.video(delegate, listener, requestId(requestHeaders), model);
+    }
+
+    private OpenAiTransport transport(Map<String, String> requestHeaders) {
+        RequestAuthenticator authenticator = apiKey == null || apiKey.isBlank()
+                ? RequestAuthenticator.NONE
+                : () -> Map.of("Authorization", "Bearer " + apiKey);
+        return new OpenAiTransport(baseUri.toString(), authenticator, requestHeaders,
+                httpClient, objectMapper, timeout);
+    }
+
+    private String defaultRoute(String configured) {
+        return requireText(configured, "default model");
     }
 
     private static String requestId(Map<String, String> headers) {
@@ -219,6 +450,10 @@ public final class OrionModelClient {
         private String baseUrl = "http://localhost:8080/v1";
         private String apiKey;
         private String defaultModel;
+        private String defaultEmbeddingModel;
+        private String defaultAudioModel;
+        private String defaultImageModel;
+        private String defaultVideoModel;
         private Duration connectTimeout = Duration.ofSeconds(10);
         private Duration timeout = Duration.ofSeconds(60);
         private Map<String, String> headers = Map.of();
@@ -229,6 +464,10 @@ public final class OrionModelClient {
         public Builder baseUrl(String value) { baseUrl = value; return this; }
         public Builder apiKey(String value) { apiKey = value; return this; }
         public Builder defaultModel(String value) { defaultModel = value; return this; }
+        public Builder defaultEmbeddingModel(String value) { defaultEmbeddingModel = value; return this; }
+        public Builder defaultAudioModel(String value) { defaultAudioModel = value; return this; }
+        public Builder defaultImageModel(String value) { defaultImageModel = value; return this; }
+        public Builder defaultVideoModel(String value) { defaultVideoModel = value; return this; }
         public Builder connectTimeout(Duration value) { connectTimeout = value; return this; }
         public Builder timeout(Duration value) { timeout = value; return this; }
         public Builder headers(Map<String, String> value) { headers = Objects.requireNonNull(value); return this; }

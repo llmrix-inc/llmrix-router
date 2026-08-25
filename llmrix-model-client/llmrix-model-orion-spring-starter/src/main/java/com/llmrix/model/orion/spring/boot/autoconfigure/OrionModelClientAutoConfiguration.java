@@ -5,11 +5,15 @@ import com.llmrix.model.orion.client.OrionModelClient;
 import com.llmrix.model.orion.observation.OrionModelClientListener;
 import com.llmrix.model.orion.spring.boot.observability.MicrometerOrionModelClientListener;
 import com.llmrix.model.orion.spring.boot.properties.OrionModelClientProperties;
-import com.llmrix.model.router.core.api.ChatModel;
-import com.llmrix.model.router.integrations.springai.SpringAiModels;
+import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.api.audio.AudioModel;
+import com.llmrix.model.router.core.api.embedding.EmbeddingModel;
+import com.llmrix.model.router.core.api.image.ImageModel;
+import com.llmrix.model.router.core.api.video.VideoModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -34,7 +38,11 @@ public class OrionModelClientAutoConfiguration {
         OrionModelClient.Builder builder = OrionModelClient.builder()
                 .baseUrl(properties.getBaseUrl())
                 .apiKey(properties.getApiKey())
-                .defaultModel(properties.getDefaultModel())
+                .defaultModel(chatDefault(properties))
+                .defaultEmbeddingModel(properties.getDefaults().getEmbedding())
+                .defaultAudioModel(properties.getDefaults().getAudio())
+                .defaultImageModel(properties.getDefaults().getImage())
+                .defaultVideoModel(properties.getDefaults().getVideo())
                 .connectTimeout(properties.getConnectTimeout())
                 .timeout(properties.getTimeout())
                 .headers(properties.getHeaders())
@@ -63,19 +71,43 @@ public class OrionModelClientAutoConfiguration {
 
     @Bean(name = "orionModelChatModel")
     @ConditionalOnMissingBean(name = "orionModelChatModel")
-    @ConditionalOnProperty(prefix = "llmrix.model.orion", name = "default-model")
+    @ConditionalOnExpression("'${llmrix.model.orion.default-model:}' != '' || "
+            + "'${llmrix.model.orion.defaults.chat:}' != ''")
     ChatModel orionModelChatModel(OrionModelClient client) {
         return client.defaultChatModel();
     }
 
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnClass(org.springframework.ai.chat.model.ChatModel.class)
-    static class SpringAiConfiguration {
-        @Bean(name = "orionModelSpringAiChatModel")
-        @ConditionalOnMissingBean(name = "orionModelSpringAiChatModel")
-        @ConditionalOnProperty(prefix = "llmrix.model.orion", name = "default-model")
-        org.springframework.ai.chat.model.ChatModel orionModelSpringAiChatModel(OrionModelClient client) {
-            return SpringAiModels.expose(client.defaultChatModel());
-        }
+    @Bean(name = "orionModelEmbeddingModel")
+    @ConditionalOnMissingBean(name = "orionModelEmbeddingModel")
+    @ConditionalOnProperty(prefix = "llmrix.model.orion.defaults", name = "embedding")
+    EmbeddingModel orionModelEmbeddingModel(OrionModelClient client) {
+        return client.defaultEmbeddingModel();
     }
+
+    @Bean(name = "orionModelAudioModel")
+    @ConditionalOnMissingBean(name = "orionModelAudioModel")
+    @ConditionalOnProperty(prefix = "llmrix.model.orion.defaults", name = "audio")
+    AudioModel orionModelAudioModel(OrionModelClient client) {
+        return client.defaultAudioModel();
+    }
+
+    @Bean(name = "orionModelImageModel")
+    @ConditionalOnMissingBean(name = "orionModelImageModel")
+    @ConditionalOnProperty(prefix = "llmrix.model.orion.defaults", name = "image")
+    ImageModel orionModelImageModel(OrionModelClient client) {
+        return client.defaultImageModel();
+    }
+
+    @Bean(name = "orionModelVideoModel")
+    @ConditionalOnMissingBean(name = "orionModelVideoModel")
+    @ConditionalOnProperty(prefix = "llmrix.model.orion.defaults", name = "video")
+    VideoModel orionModelVideoModel(OrionModelClient client) {
+        return client.defaultVideoModel();
+    }
+
+    private static String chatDefault(OrionModelClientProperties properties) {
+        String chat = properties.getDefaults().getChat();
+        return chat == null || chat.isBlank() ? properties.getDefaultModel() : chat;
+    }
+
 }

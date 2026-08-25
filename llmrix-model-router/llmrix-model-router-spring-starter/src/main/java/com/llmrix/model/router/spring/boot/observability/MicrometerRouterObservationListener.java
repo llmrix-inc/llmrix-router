@@ -1,15 +1,14 @@
 package com.llmrix.model.router.spring.boot.observability;
 
-import com.llmrix.model.router.core.spi.RouterListener;
-import com.llmrix.model.router.core.spi.event.AttemptCompleted;
-import com.llmrix.model.router.core.spi.event.FallbackStarted;
-import com.llmrix.model.router.core.spi.event.RequestCompleted;
-import com.llmrix.model.router.core.spi.event.RequestStarted;
-import com.llmrix.model.router.core.spi.event.RouteSelected;
-import com.llmrix.model.router.core.spi.event.UsageRecorded;
-import com.llmrix.model.router.core.spi.event.CandidateCooldown;
-import com.llmrix.model.router.core.spi.event.FirstTokenReceived;
-import com.llmrix.model.router.core.spi.event.AttemptStarted;
+import com.llmrix.model.router.core.event.RouterListener;
+import com.llmrix.model.router.core.event.AttemptCompleted;
+import com.llmrix.model.router.core.event.RequestCompleted;
+import com.llmrix.model.router.core.event.RequestStarted;
+import com.llmrix.model.router.core.event.RouteSelected;
+import com.llmrix.model.router.core.event.UsageRecorded;
+import com.llmrix.model.router.core.event.TargetCooldown;
+import com.llmrix.model.router.core.event.FirstTokenReceived;
+import com.llmrix.model.router.core.event.AttemptStarted;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.observation.Observation;
@@ -91,11 +90,12 @@ public final class MicrometerRouterObservationListener implements RouterListener
         if (tracingEnabled) {
             Observation observation = Observation.start("llm.router.request", observations);
             observation.highCardinalityKeyValue("llm.request.id", event.requestId());
-            if (includePrompts && promptSanitizer != null && event.request() != null
+            if (includePrompts && promptSanitizer != null
+                    && event.request() instanceof com.llmrix.model.router.core.api.chat.ChatRequest chatRequest
                     && event.route() != null && promptRoutes.contains(event.route())) {
-                String prompt = event.request().messages().stream()
+                String prompt = chatRequest.messages().stream()
                         .filter(message -> "user".equals(message.role()))
-                        .reduce((first, second) -> second).map(com.llmrix.model.router.core.api.Message::content).orElse("");
+                        .reduce((first, second) -> second).map(com.llmrix.model.router.core.api.chat.Message::content).orElse("");
                 String sanitized = promptSanitizer.sanitize(prompt);
                 if (sanitized != null) observation.highCardinalityKeyValue(
                         "llm.router.prompt", sanitized.substring(0, Math.min(promptMaxChars, sanitized.length())));
@@ -110,7 +110,7 @@ public final class MicrometerRouterObservationListener implements RouterListener
         Observation observation = active.get(event.requestId());
         if (observation != null) {
             observation.lowCardinalityKeyValue("llm.router.strategy", event.strategy());
-            if (includeCandidateId) observation.lowCardinalityKeyValue("llm.router.candidate", event.candidateId());
+            if (includeCandidateId) observation.lowCardinalityKeyValue("llm.router.target", event.targetId());
             if (includeRoutingReason && event.reason() != null) {
                 observation.lowCardinalityKeyValue("llm.router.reason", event.reason());
             }
@@ -118,23 +118,24 @@ public final class MicrometerRouterObservationListener implements RouterListener
         if (tracingEnabled) child("llm.router.select", event.requestId()).stop();
     }
 
-    @Override public void onAttemptStarted(AttemptStarted event) {
+    @Override
+    public void onAttemptStarted(AttemptStarted event) {
         if (!tracingEnabled) return;
         Observation observation = child("llm.router.attempt", event.requestId())
                 .lowCardinalityKeyValue("llm.router.attempt", Integer.toString(event.attempt()));
-        if (includeCandidateId) observation.lowCardinalityKeyValue("llm.router.candidate", event.candidateId());
-        attempts.put(attemptKey(event.requestId(), event.candidateId(), event.attempt()), observation);
+        if (includeCandidateId) observation.lowCardinalityKeyValue("llm.router.target", event.targetId());
+        attempts.put(attemptKey(event.requestId(), event.targetId(), event.attempt()), observation);
     }
 
     @Override
     public void onAttemptCompleted(AttemptCompleted event) {
-        Observation attempt = attempts.remove(attemptKey(event.requestId(), event.candidateId(), event.attempt()));
+        Observation attempt = attempts.remove(attemptKey(event.requestId(), event.targetId(), event.attempt()));
         if (attempt != null) {
             if (!event.success()) attempt.error(new IllegalStateException(event.errorType()));
             attempt.stop();
         }
         if (!metricsEnabled) return;
-        String candidate = includeCandidateId ? event.candidateId() : "redacted";
+        String candidate = includeCandidateId ? event.targetId() : "redacted";
         String errorType = event.errorType() == null ? "none" : event.errorType();
         meters.counter("llm.router.attempts", "candidate", candidate,
                 "outcome", event.success() ? "success" : "failure", "error.type", errorType).increment();
@@ -144,30 +145,25 @@ public final class MicrometerRouterObservationListener implements RouterListener
     }
 
     @Override
-    public void onFallback(FallbackStarted event) {
-        if (tracingEnabled) child("llm.router.fallback", event.requestId()).stop();
-        if (metricsEnabled) meters.counter("llm.router.fallbacks").increment();
-    }
-
-    @Override public void onFirstToken(FirstTokenReceived event) {
+    public void onFirstToken(FirstTokenReceived event) {
         if (!metricsEnabled) return;
-        String candidate = includeCandidateId ? event.candidateId() : "redacted";
+        String candidate = includeCandidateId ? event.targetId() : "redacted";
         Timer.builder("llm.router.first.token")
                 .tag("candidate", candidate).register(meters)
                 .record(event.durationNanos(), TimeUnit.NANOSECONDS);
     }
 
     @Override
-    public void onCandidateCooldown(CandidateCooldown event) {
+    public void onTargetCooldown(TargetCooldown event) {
         if (!metricsEnabled) return;
-        String candidate = includeCandidateId ? event.candidateId() : "redacted";
+        String candidate = includeCandidateId ? event.targetId() : "redacted";
         meters.counter("llm.router.cooldowns", "candidate", candidate).increment();
     }
 
     @Override
     public void onUsageRecorded(UsageRecorded event) {
         if (!metricsEnabled) return;
-        String candidate = includeCandidateId ? event.candidateId() : "redacted";
+        String candidate = includeCandidateId ? event.targetId() : "redacted";
         if (event.usage().inputTokens() >= 0) {
             meters.counter("llm.router.tokens", "candidate", candidate, "type", "input")
                     .increment(event.usage().inputTokens());

@@ -50,7 +50,8 @@ final class OrtFloatInferenceEngine implements FloatInferenceEngine {
         }
     }
 
-    @Override public synchronized float[] infer(float[] features) {
+    @Override
+    public synchronized float[] infer(float[] features) {
         try (OnnxTensor input = OnnxTensor.createTensor(
                 environment, FloatBuffer.wrap(features), new long[]{1, features.length});
              OrtSession.Result result = session.run(Map.of(inputName, input))) {
@@ -66,9 +67,13 @@ final class OrtFloatInferenceEngine implements FloatInferenceEngine {
         }
     }
 
-    @Override public void close() {
-        try { session.close(); }
-        catch (OrtException error) { throw new IllegalStateException("unable to close ONNX session", error); }
+    @Override
+    public void close() {
+        try {
+            session.close();
+        } catch (OrtException error) {
+            throw new IllegalStateException("unable to close ONNX session", error);
+        }
     }
 
     private static String resolveName(String configured, Set<String> available, String kind) {
@@ -91,6 +96,9 @@ final class OrtFloatInferenceEngine implements FloatInferenceEngine {
 
     private static void closeAfterFailedLoad(OrtSession session) {
         if (session == null) return;
-        try { session.close(); } catch (OrtException ignored) { }
+        try {
+            session.close();
+        } catch (OrtException ignored) {
+        }
     }
 }

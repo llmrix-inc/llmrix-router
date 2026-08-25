@@ -33,7 +33,7 @@ Or set `LLMRIX_MODEL_ROUTER_REDIS_URI` to point at an existing instance.
 ## Making Changes
 
 1. Fork the repository and create a branch from `main`: `git checkout -b fix/my-fix`.
-2. Make your changes. Tests live in `llmrix-model-examples`.
+2. Make your changes. Tests live in the module-scoped children under `llmrix-model-examples`.
 3. Run `mvn clean verify` on Java 17 and Java 21 before pushing.
 4. Open a pull request against `main`. Fill in the pull request template.
 
@@ -44,7 +44,7 @@ Use short imperative-mood subjects (`Fix cooldown reset on retry`, not `Fixed` o
 ## Pull Request Checklist
 
 - [ ] `mvn clean verify` passes on Java 17 and Java 21.
-- [ ] New behavior is covered by a test in `llmrix-model-examples`.
+- [ ] New behavior is covered by a test in the matching `*-examples` child under `llmrix-model-examples`.
 - [ ] Public API changes are reflected in the relevant module's `package-info.java` or Javadoc.
 - [ ] `CHANGELOG.md` has an entry under `[Unreleased]`.
 

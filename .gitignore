@@ -1,22 +1,168 @@
-# IDE files
+# ==============================
+# IDE / Editor files
+# ==============================
+
+# IntelliJ IDEA
 .idea/
 *.iml
 *.iws
 *.ipr
-.vscode/
-
-# Build and target output
-target/
 out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+*.launch
+.factorypath
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# NetBeans
+nbproject/
+nbbuild/
+dist/
+nbdist/
+nbactions.xml
+nb-configuration.xml
+
+# Vim / Emacs
+*.swp
+*.swo
+*~
+\#*#
+.#*
+
+# ==============================
+# Build and target output
+# ==============================
+target/
 build/
+dist/
 
-# OS specific files
-.DS_Store
-Thumbs.db
+# Maven specific
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+.flattened-pom.xml
+*.versionsBackup
 
+# ==============================
+# Java / JVM
+# ==============================
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+*.hprof
+
+# ==============================
 # Logs
+# ==============================
 *.log
 logs/
+*.log.*
 
-# Backup files
-*.versionsBackup
+# ==============================
+# Testing & Coverage
+# ==============================
+*.exec
+.coveralls.yml
+.nyc_output/
+coverage/
+.nyc_output/
+.scannerwork/
+.sonar/
+jacoco-ut/
+
+# ==============================
+# Environment & Local config
+# ==============================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# Spring Boot local configuration
+application-local.yml
+application-local.properties
+application-dev.yml
+application-dev.properties
+bootstrap-local.yml
+bootstrap-local.properties
+
+# ==============================
+# OS specific files
+# ==============================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# Windows
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ==============================
+# Package managers
+# ==============================
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ==============================
+# Security / Credentials
+# ==============================
+*.p12
+*.key
+*.keystore
+*.truststore
+*.jks
+*.pem
+*.crt
+*.cert
+secring.gpg
+pubring.gpg
+
+# ==============================
+# Misc
+# ==============================
+*.bak
+*.backup
+*.tmp
+*.temp
+.cache/
+.tmp/
+.local/
+.attach_pid*

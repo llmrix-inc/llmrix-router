@@ -1,5 +1,24 @@
 package com.llmrix.model.router.integrations.evaluation;
 
-public record EvaluationResult(String sampleId, String modelId, boolean success,
-                               long latencyNanos, double costUsd, double quality,
-                               String errorType) { }
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Value;
+import lombok.experimental.Accessors;
+
+@Value
+@Accessors(fluent = true)
+public class EvaluationResult {
+    @JsonProperty("sampleId")
+    String sampleId;
+    @JsonProperty("modelId")
+    String modelId;
+    @JsonProperty("success")
+    boolean success;
+    @JsonProperty("latencyNanos")
+    long latencyNanos;
+    @JsonProperty("costUsd")
+    double costUsd;
+    @JsonProperty("quality")
+    double quality;
+    @JsonProperty("errorType")
+    String errorType;
+}

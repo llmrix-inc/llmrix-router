@@ -2,10 +2,10 @@ package com.llmrix.model.orion.client;
 
 import com.llmrix.model.orion.observation.OrionModelClientListener;
 
-import com.llmrix.model.router.core.api.ChatChunk;
-import com.llmrix.model.router.core.api.ChatModel;
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.ChatResponse;
+import com.llmrix.model.router.core.api.chat.ChatChunk;
+import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatResponse;
 
 import java.util.Objects;
 import java.util.UUID;
