@@ -21,9 +21,7 @@
   <a href="docs/server.md">Server</a> •
   <a href="docs/client.md">Client</a>
 </p>
-<p align="center">
-  <a href="./README.md">English</a>
-</p>
+
 
 LLMRix exposes multiple model providers through one stable `ChatModel` interface. It selects an eligible model using capability, quality, cost, latency, quota, and health signals, then applies bounded retries and cooldown without leaking routing complexity into application code.
 
