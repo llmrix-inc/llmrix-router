@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.llmrix.model</groupId>
-    <artifactId>llmrix-model-parent</artifactId>
+    <artifactId>llmrix-router</artifactId>
     <version>1.0.1</version>
     <packaging>pom</packaging>
 
-    <name>llmrix-model-parent</name>
+    <name>llmrix-router</name>
     <description>A production-oriented multi-model routing and orchestration framework for Java.</description>
     <url>https://github.com/llmrix/llmrix-router</url>
 
