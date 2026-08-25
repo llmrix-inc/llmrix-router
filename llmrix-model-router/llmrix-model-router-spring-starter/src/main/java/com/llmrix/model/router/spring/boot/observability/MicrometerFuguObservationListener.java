@@ -41,12 +41,14 @@ public final class MicrometerFuguObservationListener implements FuguListener {
         this.tracingEnabled = tracingEnabled;
     }
 
-    @Override public void onStarted(FuguStarted event) {
+    @Override
+    public void onStarted(FuguStarted event) {
         if (tracingEnabled) requests.put(event.requestId(), Observation.start("llm.fugu.orchestration", observations));
         if (metricsEnabled) meters.counter("llm.fugu.requests").increment();
     }
 
-    @Override public void onTurnStarted(FuguTurnStarted event) {
+    @Override
+    public void onTurnStarted(FuguTurnStarted event) {
         if (!tracingEnabled) return;
         Observation observation = Observation.start("llm.fugu.turn", observations)
                 .lowCardinalityKeyValue("llm.fugu.role", event.role().name().toLowerCase());
@@ -54,7 +56,8 @@ public final class MicrometerFuguObservationListener implements FuguListener {
         turns.put(turnKey(event.requestId(), event.turn()), observation);
     }
 
-    @Override public void onTurnCompleted(FuguTurnCompleted event) {
+    @Override
+    public void onTurnCompleted(FuguTurnCompleted event) {
         if (metricsEnabled) {
             String candidate = includeCandidateId ? event.candidateId() : "redacted";
             Timer.builder("llm.fugu.turn.duration")
@@ -65,11 +68,12 @@ public final class MicrometerFuguObservationListener implements FuguListener {
         if (observation != null) observation.stop();
     }
 
-    @Override public void onCompleted(FuguCompleted event) {
+    @Override
+    public void onCompleted(FuguCompleted event) {
         if (metricsEnabled) Timer.builder("llm.fugu.orchestration.duration")
-                    .tag("outcome", event.success() ? "success" : "failure")
-                    .tag("termination", event.termination())
-                    .register(meters).record(event.durationNanos(), TimeUnit.NANOSECONDS);
+                .tag("outcome", event.success() ? "success" : "failure")
+                .tag("termination", event.termination())
+                .register(meters).record(event.durationNanos(), TimeUnit.NANOSECONDS);
         Observation observation = requests.remove(event.requestId());
         if (observation != null) {
             observation.lowCardinalityKeyValue("llm.fugu.termination", event.termination());
@@ -84,21 +88,26 @@ public final class MicrometerFuguObservationListener implements FuguListener {
         });
     }
 
-    @Override public void onFallback(FuguFallback event) {
+    @Override
+    public void onFallback(FuguFallback event) {
         if (metricsEnabled) meters.counter("llm.fugu.fallbacks").increment();
     }
 
-    @Override public void onCandidateCooldown(FuguCandidateCooldown event) {
+    @Override
+    public void onCandidateCooldown(FuguCandidateCooldown event) {
         if (!metricsEnabled) return;
         String candidate = includeCandidateId ? event.candidateId() : "redacted";
         meters.counter("llm.fugu.cooldowns", "candidate", candidate).increment();
     }
 
-    @Override public void onRetry(FuguRetry event) {
+    @Override
+    public void onRetry(FuguRetry event) {
         if (!metricsEnabled) return;
         String candidate = includeCandidateId ? event.candidateId() : "redacted";
         meters.counter("llm.fugu.retries", "candidate", candidate).increment();
     }
 
-    private static String turnKey(String requestId, int turn) { return requestId + ":" + turn; }
+    private static String turnKey(String requestId, int turn) {
+        return requestId + ":" + turn;
+    }
 }

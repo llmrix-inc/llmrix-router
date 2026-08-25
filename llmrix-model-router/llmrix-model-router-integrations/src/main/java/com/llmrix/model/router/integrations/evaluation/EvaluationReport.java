@@ -1,11 +1,25 @@
 package com.llmrix.model.router.integrations.evaluation;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public record EvaluationReport(List<EvaluationResult> results) {
-    public EvaluationReport { results = List.copyOf(results); }
+@Getter
+@EqualsAndHashCode
+@Accessors(fluent = true)
+public final class EvaluationReport {
+    @JsonProperty("results")
+    private final List<EvaluationResult> results;
+
+    public EvaluationReport(List<EvaluationResult> results) {
+        this.results = List.copyOf(results);
+    }
+
     public double successRate() {
         return results.isEmpty() ? Double.NaN
                 : results.stream().filter(EvaluationResult::success).count() / (double) results.size();

@@ -1,7 +1,7 @@
 package com.llmrix.model.router.integrations.onnx;
 
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.routing.CandidateSnapshot;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.routing.RouteCandidate;
 import com.llmrix.model.router.core.routing.SemanticClassifier;
 
 import java.nio.file.Path;
@@ -12,7 +12,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Runs a float feature vector through an ONNX classifier and maps output positions to candidate IDs. */
+/**
+ * Runs a float feature vector through an ONNX classifier and maps output positions to candidate IDs.
+ */
 public final class OnnxSemanticClassifier implements SemanticClassifier, AutoCloseable {
     private final List<String> labels;
     private final OnnxFeatureExtractor features;
@@ -40,7 +42,8 @@ public final class OnnxSemanticClassifier implements SemanticClassifier, AutoClo
         this.engine = Objects.requireNonNull(engine, "engine");
     }
 
-    @Override public Map<String, Double> score(ChatRequest request, List<CandidateSnapshot> candidates) {
+    @Override
+    public Map<String, Double> score(ChatRequest request, List<RouteCandidate> candidates) {
         float[] input = Objects.requireNonNull(features.extract(request, candidates),
                 "feature extractor returned null");
         if (input.length == 0) throw new IllegalArgumentException("feature vector must not be empty");
@@ -50,7 +53,7 @@ public final class OnnxSemanticClassifier implements SemanticClassifier, AutoClo
         float[] output = engine.infer(input);
         if (output.length != labels.size()) throw new IllegalStateException(
                 "ONNX output size " + output.length + " does not match labels " + labels.size());
-        Set<String> eligible = candidates.stream().map(CandidateSnapshot::id)
+        Set<String> eligible = candidates.stream().map(RouteCandidate::id)
                 .collect(java.util.stream.Collectors.toSet());
         Map<String, Double> scores = new LinkedHashMap<>();
         for (int index = 0; index < labels.size(); index++) {
@@ -61,7 +64,10 @@ public final class OnnxSemanticClassifier implements SemanticClassifier, AutoClo
         return Map.copyOf(scores);
     }
 
-    @Override public void close() { engine.close(); }
+    @Override
+    public void close() {
+        engine.close();
+    }
 
     private static FloatInferenceEngine createEngine(
             Path model, String inputName, String outputName,

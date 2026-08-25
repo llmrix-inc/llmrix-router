@@ -37,21 +37,21 @@
             <id>llmrix</id>
             <name>llmrix</name>
             <email>ailab@llmrix.com</email>
-            <url>https://github.com/llmrix/llmrix-router/</url>
+            <url>https://github.com/llmrix/llmrix-router</url>
             <organizationUrl>https://www.llmrix.com</organizationUrl>
             <timezone>+8</timezone>
         </developer>
     </developers>
 
     <issueManagement>
-        <system>github</system>
+        <system>GitHub</system>
         <url>https://github.com/llmrix/llmrix-router/issues</url>
     </issueManagement>
 
     <modules>
         <module>llmrix-model-router</module>
-        <module>llmrix-model-examples</module>
         <module>llmrix-model-client</module>
+        <module>llmrix-model-examples</module>
     </modules>
 
     <properties>
@@ -59,11 +59,21 @@
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-boot.version>3.4.5</spring-boot.version>
+        <lombok.version>1.18.38</lombok.version>
         <jackson.version>2.18.3</jackson.version>
         <junit.version>5.11.4</junit.version>
-        <spring-ai.version>1.1.2</spring-ai.version>
-        <langchain4j.version>1.12.1</langchain4j.version>
         <json-schema-validator.version>1.5.6</json-schema-validator.version>
+        <bucket4j.version>8.10.1</bucket4j.version>
+        <lettuce.version>6.4.2.RELEASE</lettuce.version>
+        <onnxruntime.version>1.22.0</onnxruntime.version>
+        <versions-maven-plugin.version>2.13.0</versions-maven-plugin.version>
+        <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
+        <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
+        <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
+        <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
+        <maven-javadoc-plugin.version>3.11.2</maven-javadoc-plugin.version>
+        <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
+        <central-publishing-maven-plugin.version>0.7.0</central-publishing-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -90,19 +100,54 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>org.springframework.ai</groupId>
-                <artifactId>spring-ai-model</artifactId>
-                <version>${spring-ai.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>llmrix-model-router-core</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j</artifactId>
-                <version>${langchain4j.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>llmrix-model-router-integrations</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-core</artifactId>
-                <version>${langchain4j.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>llmrix-model-router-spring-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>llmrix-model-orion</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>llmrix-model-orion-spring-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.networknt</groupId>
+                <artifactId>json-schema-validator</artifactId>
+                <version>${json-schema-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.bucket4j</groupId>
+                <artifactId>bucket4j-core</artifactId>
+                <version>${bucket4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.lettuce</groupId>
+                <artifactId>lettuce-core</artifactId>
+                <version>${lettuce.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.microsoft.onnxruntime</groupId>
+                <artifactId>onnxruntime</artifactId>
+                <version>${onnxruntime.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -111,10 +156,9 @@
         <pluginManagement>
             <plugins>
                 <plugin>
-                    <!--mvn versions:set -DnewVersion=1.9.2 -DprocessAllModules=true-->
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>versions-maven-plugin</artifactId>
-                    <version>2.13.0</version>
+                    <version>${versions-maven-plugin.version}</version>
                     <configuration>
                         <generateBackupPoms>false</generateBackupPoms>
                     </configuration>
@@ -122,7 +166,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.5.2</version>
+                    <version>${maven-surefire-plugin.version}</version>
                     <configuration>
                         <useModulePath>false</useModulePath>
                     </configuration>
@@ -130,21 +174,26 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
-                    <version>3.3.1</version>
+                    <version>${maven-resources-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.13.0</version>
+                    <version>${maven-compiler-plugin.version}</version>
                     <configuration>
                         <release>${maven.compiler.release}</release>
                         <parameters>true</parameters>
                     </configuration>
                 </plugin>
                 <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
-                    <version>3.3.1</version>
+                    <version>${maven-source-plugin.version}</version>
                     <executions>
                         <execution>
                             <id>attach-sources</id>
@@ -157,7 +206,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.11.2</version>
+                    <version>${maven-javadoc-plugin.version}</version>
                     <configuration>
                         <charset>${project.build.sourceEncoding}</charset>
                         <docencoding>${project.build.sourceEncoding}</docencoding>
@@ -175,7 +224,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-gpg-plugin</artifactId>
-                    <version>3.2.7</version>
+                    <version>${maven-gpg-plugin.version}</version>
                     <executions>
                         <execution>
                             <phase>verify</phase>
@@ -194,12 +243,11 @@
                 <plugin>
                     <groupId>org.sonatype.central</groupId>
                     <artifactId>central-publishing-maven-plugin</artifactId>
-                    <version>0.7.0</version>
+                    <version>${central-publishing-maven-plugin.version}</version>
                     <extensions>true</extensions>
                     <configuration>
                         <publishingServerId>sonatype</publishingServerId>
-                        <!-- 如果你想让它在上传校验成功后全自动发布，可以改为 true；设为 false 则会在网页端生成记录等你手动点 -->
-                        <autoPublish>true</autoPublish>
+                        <autoPublish>false</autoPublish>
                     </configuration>
                 </plugin>
             </plugins>
@@ -212,7 +260,6 @@
             <build>
                 <plugins>
                     <plugin>
-                        <!--mvn versions:set -DnewVersion=1.8.8 -DprocessAllModules=true-->
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>versions-maven-plugin</artifactId>
                     </plugin>
@@ -245,8 +292,6 @@
         </profile>
     </profiles>
 
-    <!--mac-->
-    <!-- mvn -Dmaven.test.skip=true clean deploy -Prelease -Dgpg.executable=gpg -Dgpg.passphrase='password' 2>&1 -->
     <distributionManagement>
         <repository>
             <id>sonatype</id>
@@ -254,4 +299,5 @@
             <url>https://central.sonatype.com/api/v1/publisher/deployments/maven2/</url>
         </repository>
     </distributionManagement>
+
 </project>

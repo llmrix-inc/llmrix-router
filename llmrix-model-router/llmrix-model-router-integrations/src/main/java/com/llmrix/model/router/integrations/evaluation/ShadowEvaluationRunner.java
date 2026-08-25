@@ -1,13 +1,15 @@
 package com.llmrix.model.router.integrations.evaluation;
 
-import com.llmrix.model.router.core.api.ChatModel;
-import com.llmrix.model.router.core.candidate.ModelPricing;
+import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.model.ModelPricing;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Offline-only replay that compares a primary model with shadow models. */
+/**
+ * Offline-only replay that compares a primary model with shadow models.
+ */
 public final class ShadowEvaluationRunner {
     private final EvaluationRunner delegate;
 
@@ -26,5 +28,7 @@ public final class ShadowEvaluationRunner {
         this.delegate = new EvaluationRunner(models, pricing, scorer);
     }
 
-    public EvaluationReport run(List<EvaluationSample> samples) { return delegate.run(samples); }
+    public EvaluationReport run(List<EvaluationSample> samples) {
+        return delegate.run(samples);
+    }
 }

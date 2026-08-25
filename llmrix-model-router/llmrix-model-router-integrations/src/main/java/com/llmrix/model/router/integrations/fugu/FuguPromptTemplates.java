@@ -1,10 +1,11 @@
 package com.llmrix.model.router.integrations.fugu;
 
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.Message;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.Message;
 
 public final class FuguPromptTemplates {
-    private FuguPromptTemplates() { }
+    private FuguPromptTemplates() {
+    }
 
     public static FuguPromptTemplate defaultTemplate() {
         return (original, role, latestAnswer, suggestion) -> {
@@ -17,8 +18,9 @@ public final class FuguPromptTemplates {
                 case WORKER -> query + (suggestion == null ? "" : "\n\nSuggestion from a coordinator:\n" + suggestion);
                 case THINKER -> "Analyze how to improve the current answer. Do not answer the user directly."
                         + "\n\nQuery:\n" + query + "\n\nCurrent answer:\n" + valueOrEmpty(latestAnswer);
-                case VERIFIER -> "Review the answer. Start with ACCEPT if it is correct and complete; otherwise start with REJECT."
-                        + "\n\nQuery:\n" + query + "\n\nAnswer:\n" + valueOrEmpty(latestAnswer);
+                case VERIFIER ->
+                        "Review the answer. Start with ACCEPT if it is correct and complete; otherwise start with REJECT."
+                                + "\n\nQuery:\n" + query + "\n\nAnswer:\n" + valueOrEmpty(latestAnswer);
             };
             ChatRequest.Builder builder = ChatRequest.builder()
                     .message(Message.system("You are a helpful assistant."))
@@ -32,5 +34,7 @@ public final class FuguPromptTemplates {
         };
     }
 
-    private static String valueOrEmpty(String value) { return value == null ? "" : value; }
+    private static String valueOrEmpty(String value) {
+        return value == null ? "" : value;
+    }
 }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
@@ -9,12 +10,17 @@
     </parent>
     <artifactId>llmrix-model-router-integrations</artifactId>
     <name>llmrix-model-router-integrations</name>
-    <description>Integrations and adapters (OpenAI, Spring AI, LangChain4j, Redis, Bucket4j, ONNX) for LLMRix Router</description>
+    <description>OpenAI protocol, Redis, Bucket4j, ONNX, validation, and evaluation integrations for LLMRix Router</description>
     <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>llmrix-model-router-core</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -27,17 +33,6 @@
         <dependency>
             <groupId>com.networknt</groupId>
             <artifactId>json-schema-validator</artifactId>
-            <version>${json-schema-validator.version}</version>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-model</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-core</artifactId>
             <optional>true</optional>
         </dependency>
         <dependency>
@@ -53,19 +48,16 @@
         <dependency>
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
-            <version>8.10.1</version>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
-            <version>6.4.2.RELEASE</version>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.microsoft.onnxruntime</groupId>
             <artifactId>onnxruntime</artifactId>
-            <version>1.22.0</version>
             <optional>true</optional>
         </dependency>
     </dependencies>

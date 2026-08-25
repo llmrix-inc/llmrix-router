@@ -1,7 +1,7 @@
 package com.llmrix.model.router.integrations.validation;
 
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.ChatResponse;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatResponse;
 
 import java.util.List;
 import java.util.Objects;
@@ -19,7 +19,8 @@ public final class CompositeResponseValidator implements ResponseValidator {
         this(List.of(validators));
     }
 
-    @Override public void validate(ChatRequest request, ChatResponse response) {
+    @Override
+    public void validate(ChatRequest request, ChatResponse response) {
         validators.forEach(validator -> validator.validate(request, response));
     }
 }

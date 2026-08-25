@@ -4,24 +4,27 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.llmrix.model.router.core.api.ChatModel;
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.ChatResponse;
-import com.llmrix.model.router.core.api.Message;
+import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatResponse;
+import com.llmrix.model.router.core.api.chat.Message;
 import com.llmrix.model.router.core.api.Usage;
-import com.llmrix.model.router.core.api.TextPart;
-import com.llmrix.model.router.core.api.ImagePart;
-import com.llmrix.model.router.core.api.AudioPart;
-import com.llmrix.model.router.core.api.ToolCallPart;
-import com.llmrix.model.router.core.api.ToolChoice;
-import com.llmrix.model.router.core.api.ToolResultPart;
-import com.llmrix.model.router.core.api.ToolCallDelta;
-import com.llmrix.model.router.core.api.ResponseFormat;
+import com.llmrix.model.router.core.api.chat.TextPart;
+import com.llmrix.model.router.core.api.chat.ImagePart;
+import com.llmrix.model.router.core.api.chat.AudioPart;
+import com.llmrix.model.router.core.api.chat.VideoPart;
+import com.llmrix.model.router.core.api.chat.FilePart;
+import com.llmrix.model.router.core.api.chat.ToolCallPart;
+import com.llmrix.model.router.core.api.chat.ToolChoice;
+import com.llmrix.model.router.core.api.chat.ToolResultPart;
+import com.llmrix.model.router.core.api.chat.ToolCallDelta;
+import com.llmrix.model.router.core.api.chat.ResponseFormat;
 import com.llmrix.model.router.core.exception.AuthenticationException;
 import com.llmrix.model.router.core.exception.InvalidRequestException;
 import com.llmrix.model.router.core.exception.ModelTimeoutException;
 import com.llmrix.model.router.core.exception.ModelUnavailableException;
 import com.llmrix.model.router.core.exception.RateLimitException;
+import com.llmrix.model.router.core.spi.auth.RequestAuthenticator;
 import com.llmrix.model.router.core.exception.PermissionDeniedException;
 import com.llmrix.model.router.core.exception.ContextWindowException;
 import com.llmrix.model.router.core.exception.ContentPolicyException;
@@ -46,10 +49,11 @@ import java.util.concurrent.CompletionException;
 import java.util.stream.Stream;
 
 public final class OpenAiCompatibleChatModel implements ChatModel {
-    public enum Api { CHAT_COMPLETIONS, RESPONSES }
+    public enum Api {CHAT_COMPLETIONS, RESPONSES}
+
     private final String modelName;
     private final URI completionsUri;
-    private final String apiKey;
+    private final RequestAuthenticator authenticator;
     private final Duration timeout;
     private final Double temperature;
     private final Integer maxTokens;
@@ -67,7 +71,9 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
         this.modelName = requireText(builder.modelName, "modelName");
         this.api = builder.api;
         this.completionsUri = endpointUri(requireText(builder.baseUrl, "baseUrl"), api);
-        this.apiKey = builder.apiKey;
+        this.authenticator = builder.authenticator != null
+                ? builder.authenticator
+                : bearerToken(builder.apiKey);
         this.timeout = builder.timeout;
         this.temperature = builder.temperature;
         this.maxTokens = builder.maxTokens;
@@ -79,27 +85,26 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
         this.extensions = Map.copyOf(builder.extensions);
         extensions.keySet().forEach(key -> {
             if (key == null || key.isBlank()) throw new IllegalArgumentException("extension key must not be blank");
-            if (RESERVED_FIELDS.contains(key)) throw new IllegalArgumentException("extension cannot override standard field: " + key);
+            if (RESERVED_FIELDS.contains(key))
+                throw new IllegalArgumentException("extension cannot override standard field: " + key);
         });
     }
 
-    public static Builder builder() { return new Builder(); }
+    public static Builder builder() {
+        return new Builder();
+    }
 
-    public Api api() { return api; }
+    public Api api() {
+        return api;
+    }
 
     @Override
     public ChatResponse chat(ChatRequest request) {
         ObjectNode payload = requestPayload(request, false);
 
-        HttpRequest.Builder httpRequest = HttpRequest.newBuilder(completionsUri)
-                .timeout(timeout)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(write(payload)));
-        if (apiKey != null && !apiKey.isBlank()) httpRequest.header("Authorization", "Bearer " + apiKey);
-        headers.forEach(httpRequest::header);
-
         try {
-            HttpResponse<String> response = httpClient.send(httpRequest.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(
+                    requestBuilder(payload).build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw mapError(response.statusCode(), response.body());
             }
@@ -148,26 +153,43 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
     }
 
     @Override
-    public Flow.Publisher<com.llmrix.model.router.core.api.ChatChunk> stream(ChatRequest request) {
+    public Flow.Publisher<com.llmrix.model.router.core.api.chat.ChatChunk> stream(ChatRequest request) {
         ObjectNode payload = requestPayload(request, true);
         return subscriber -> {
-            SubmissionPublisher<com.llmrix.model.router.core.api.ChatChunk> publisher = new SubmissionPublisher<>();
+            SubmissionPublisher<com.llmrix.model.router.core.api.chat.ChatChunk> publisher = new SubmissionPublisher<>();
             HttpStreamControl control = new HttpStreamControl();
             publisher.subscribe(new Flow.Subscriber<>() {
                 @Override
                 public void onSubscribe(Flow.Subscription subscription) {
                     subscriber.onSubscribe(new Flow.Subscription() {
-                        @Override public void request(long n) { subscription.request(n); }
-                        @Override public void cancel() {
+                        @Override
+                        public void request(long n) {
+                            subscription.request(n);
+                        }
+
+                        @Override
+                        public void cancel() {
                             subscription.cancel();
                             control.cancel();
                             publisher.close();
                         }
                     });
                 }
-                @Override public void onNext(com.llmrix.model.router.core.api.ChatChunk item) { subscriber.onNext(item); }
-                @Override public void onError(Throwable throwable) { subscriber.onError(throwable); }
-                @Override public void onComplete() { subscriber.onComplete(); }
+
+                @Override
+                public void onNext(com.llmrix.model.router.core.api.chat.ChatChunk item) {
+                    subscriber.onNext(item);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    subscriber.onError(throwable);
+                }
+
+                @Override
+                public void onComplete() {
+                    subscriber.onComplete();
+                }
             });
             control.future(startStream(payload, publisher, control));
         };
@@ -175,7 +197,7 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
 
     private CompletableFuture<?> startStream(
             ObjectNode payload,
-            SubmissionPublisher<com.llmrix.model.router.core.api.ChatChunk> publisher,
+            SubmissionPublisher<com.llmrix.model.router.core.api.chat.ChatChunk> publisher,
             HttpStreamControl control) {
         HttpRequest.Builder httpRequest = requestBuilder(payload);
         CompletableFuture<HttpResponse<Stream<String>>> request =
@@ -194,9 +216,9 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
                     }
                     try (var lines = response.body()) {
                         SseEventDecoder decoder = new SseEventDecoder();
-                    AtomicReference<Usage> streamUsage = new AtomicReference<>(Usage.UNKNOWN);
-                    AtomicReference<String> finishReason = new AtomicReference<>();
-                    boolean includeUsage = payload.path("stream_options").path("include_usage").asBoolean(true);
+                        AtomicReference<Usage> streamUsage = new AtomicReference<>(Usage.UNKNOWN);
+                        AtomicReference<String> finishReason = new AtomicReference<>();
+                        boolean includeUsage = payload.path("stream_options").path("include_usage").asBoolean(true);
                         var iterator = lines.iterator();
                         while (!control.terminated() && iterator.hasNext()) {
                             String line = iterator.next();
@@ -225,11 +247,11 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
             String data,
             AtomicReference<Usage> streamUsage,
             AtomicReference<String> finishReason,
-            SubmissionPublisher<com.llmrix.model.router.core.api.ChatChunk> publisher,
+            SubmissionPublisher<com.llmrix.model.router.core.api.chat.ChatChunk> publisher,
             HttpStreamControl control,
             boolean includeUsage) {
         if ("[DONE]".equals(data.strip())) {
-            publisher.submit(new com.llmrix.model.router.core.api.ChatChunk("", true,
+            publisher.submit(new com.llmrix.model.router.core.api.chat.ChatChunk("", true,
                     includeUsage ? streamUsage.get() : Usage.UNKNOWN, java.util.List.of(),
                     finishReason.get() == null ? "stop" : finishReason.get()));
             if (control.terminate()) publisher.close();
@@ -261,7 +283,7 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
                         function.path("arguments").asText("")));
             }
             if (!text.isEmpty() || !toolDeltas.isEmpty()) {
-                publisher.submit(new com.llmrix.model.router.core.api.ChatChunk(text, false, Usage.UNKNOWN, toolDeltas));
+                publisher.submit(new com.llmrix.model.router.core.api.chat.ChatChunk(text, false, Usage.UNKNOWN, toolDeltas));
             }
             return false;
         } catch (IOException error) {
@@ -275,12 +297,12 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
     private boolean handleResponsesStreamEvent(
             JsonNode root,
             AtomicReference<String> finishReason,
-            SubmissionPublisher<com.llmrix.model.router.core.api.ChatChunk> publisher,
+            SubmissionPublisher<com.llmrix.model.router.core.api.chat.ChatChunk> publisher,
             HttpStreamControl control,
             boolean includeUsage) {
         String type = root.path("type").asText();
         if ("response.output_text.delta".equals(type)) {
-            publisher.submit(new com.llmrix.model.router.core.api.ChatChunk(
+            publisher.submit(new com.llmrix.model.router.core.api.chat.ChatChunk(
                     root.path("delta").asText(""), false, Usage.UNKNOWN));
             return false;
         }
@@ -288,7 +310,7 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
             JsonNode item = root.path("item");
             if ("function_call".equals(item.path("type").asText())) {
                 finishReason.set("tool_calls");
-                publisher.submit(new com.llmrix.model.router.core.api.ChatChunk("", false, Usage.UNKNOWN,
+                publisher.submit(new com.llmrix.model.router.core.api.chat.ChatChunk("", false, Usage.UNKNOWN,
                         java.util.List.of(new ToolCallDelta(root.path("output_index").asInt(0),
                                 item.path("call_id").asText(item.path("id").asText(null)),
                                 item.path("name").asText(null), item.path("arguments").asText("")))));
@@ -297,7 +319,7 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
         }
         if ("response.function_call_arguments.delta".equals(type)) {
             finishReason.set("tool_calls");
-            publisher.submit(new com.llmrix.model.router.core.api.ChatChunk("", false, Usage.UNKNOWN,
+            publisher.submit(new com.llmrix.model.router.core.api.chat.ChatChunk("", false, Usage.UNKNOWN,
                     java.util.List.of(new ToolCallDelta(root.path("output_index").asInt(0),
                             null, null, root.path("delta").asText("")))));
             return false;
@@ -307,7 +329,7 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
             Usage tokenUsage = includeUsage && !usage.isMissingNode()
                     ? new Usage(usage.path("input_tokens").asLong(-1), usage.path("output_tokens").asLong(-1))
                     : Usage.UNKNOWN;
-            publisher.submit(new com.llmrix.model.router.core.api.ChatChunk("", true, tokenUsage,
+            publisher.submit(new com.llmrix.model.router.core.api.chat.ChatChunk("", true, tokenUsage,
                     java.util.List.of(), finishReason.get() == null ? "stop" : finishReason.get()));
             if (control.terminate()) publisher.close();
             return true;
@@ -325,16 +347,24 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
         private final AtomicReference<CompletableFuture<?>> future = new AtomicReference<>();
         private final AtomicReference<Stream<String>> body = new AtomicReference<>();
 
-        boolean terminated() { return terminated.get(); }
-        boolean terminate() { return terminated.compareAndSet(false, true); }
+        boolean terminated() {
+            return terminated.get();
+        }
+
+        boolean terminate() {
+            return terminated.compareAndSet(false, true);
+        }
+
         void future(CompletableFuture<?> value) {
             future.set(value);
             if (terminated.get()) value.cancel(true);
         }
+
         void body(Stream<String> value) {
             body.set(value);
             if (terminated.get()) value.close();
         }
+
         void cancel() {
             terminated.set(true);
             CompletableFuture<?> active = future.getAndSet(null);
@@ -397,6 +427,16 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
                         ObjectNode inputAudio = partNode.putObject("input_audio");
                         inputAudio.put("data", audio.data());
                         inputAudio.put("format", audio.format());
+                    } else if (part instanceof VideoPart video) {
+                        partNode.put("type", "video_url");
+                        partNode.putObject("video_url").put("url", video.url());
+                    } else if (part instanceof FilePart file) {
+                        partNode.put("type", "file");
+                        ObjectNode fileNode = partNode.putObject("file");
+                        if (file.filename() != null) fileNode.put("filename", file.filename());
+                        if (file.fileId() != null) fileNode.put("file_id", file.fileId());
+                        else if (file.url().startsWith("data:")) fileNode.put("file_data", file.url());
+                        else fileNode.put("file_url", file.url());
                     }
                 }
             }
@@ -425,8 +465,10 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
             request.generationOptions().stop().forEach(stops::add);
         }
         if (request.generationOptions().seed() != null) payload.put("seed", request.generationOptions().seed());
-        if (request.generationOptions().candidateCount() != null) payload.put("n", request.generationOptions().candidateCount());
-        if (request.generationOptions().logprobs() != null) payload.put("logprobs", request.generationOptions().logprobs());
+        if (request.generationOptions().candidateCount() != null)
+            payload.put("n", request.generationOptions().candidateCount());
+        if (request.generationOptions().logprobs() != null)
+            payload.put("logprobs", request.generationOptions().logprobs());
         if (request.generationOptions().user() != null) payload.put("user", request.generationOptions().user());
         extensions.forEach((key, value) -> payload.set(key, objectMapper.valueToTree(value)));
         return payload;
@@ -465,6 +507,15 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
                         ObjectNode imageNode = content.addObject().put("type", "input_image")
                                 .put("image_url", image.url());
                         if (image.detail() != null) imageNode.put("detail", image.detail());
+                    } else if (part instanceof VideoPart) {
+                        throw new InvalidRequestException(
+                                "video input is supported by chat completions, not the Responses API");
+                    } else if (part instanceof FilePart file) {
+                        ObjectNode fileNode = content.addObject().put("type", "input_file");
+                        if (file.filename() != null) fileNode.put("filename", file.filename());
+                        if (file.fileId() != null) fileNode.put("file_id", file.fileId());
+                        else if (file.url().startsWith("data:")) fileNode.put("file_data", file.url());
+                        else fileNode.put("file_url", file.url());
                     } else {
                         throw new InvalidRequestException(
                                 "unsupported Responses input content: " + part.getClass().getSimpleName());
@@ -532,9 +583,18 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
                 .timeout(timeout)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(write(payload)));
-        if (apiKey != null && !apiKey.isBlank()) httpRequest.header("Authorization", "Bearer " + apiKey);
         headers.forEach(httpRequest::header);
+        Map<String, String> authenticationHeaders = authenticator.headers();
+        if (authenticationHeaders == null) {
+            throw new IllegalStateException("request authenticator returned null headers");
+        }
+        authenticationHeaders.forEach(httpRequest::setHeader);
         return httpRequest;
+    }
+
+    private static RequestAuthenticator bearerToken(String apiKey) {
+        if (apiKey == null || apiKey.isBlank()) return RequestAuthenticator.NONE;
+        return () -> java.util.Collections.singletonMap("Authorization", "Bearer " + apiKey);
     }
 
     private ChatResponse parse(String body) {
@@ -591,7 +651,7 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
     }
 
     private RuntimeException mapError(int status, String body) {
-        String message = "OpenAI-compatible API returned " + status + ": " + truncate(body);
+        String message = applicationMessage(status);
         String code = errorCode(body);
         if (status == 401) return new AuthenticationException(message).statusCode(status);
         if (status == 403) return new PermissionDeniedException(message).statusCode(status);
@@ -601,9 +661,24 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
         if ("content_filter".equals(code) || "content_policy_violation".equals(code)) {
             return new ContentPolicyException(message).statusCode(status);
         }
-        if (status == 400 || status == 404 || status == 422) return new InvalidRequestException(message).statusCode(status);
+        if (status == 400 || status == 404 || status == 422)
+            return new InvalidRequestException(message).statusCode(status);
         if (status == 429) return new RateLimitException(message).statusCode(status);
+        if (status == 402) return new ModelUnavailableException(message, false).statusCode(status);
         return new ModelUnavailableException(message).statusCode(status);
+    }
+
+    private static String applicationMessage(int status) {
+        return switch (status) {
+            case 400, 422 -> "model request was rejected";
+            case 401 -> "model service authentication failed";
+            case 402 -> "model service requires account capacity";
+            case 403 -> "model service access is denied";
+            case 404 -> "model service or model was not found";
+            case 429 -> "model service rate limit exceeded";
+            default -> status >= 500 ? "model service is temporarily unavailable"
+                    : "model request failed";
+        };
     }
 
     private String errorCode(String body) {
@@ -644,6 +719,7 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
         private String modelName;
         private String baseUrl = "https://api.openai.com/v1";
         private String apiKey;
+        private RequestAuthenticator authenticator;
         private Duration connectTimeout = Duration.ofSeconds(10);
         private Duration timeout = Duration.ofSeconds(60);
         private Double temperature;
@@ -654,19 +730,78 @@ public final class OpenAiCompatibleChatModel implements ChatModel {
         private Map<String, Object> extensions = Map.of();
         private Api api = Api.CHAT_COMPLETIONS;
 
-        public Builder modelName(String value) { modelName = value; return this; }
-        public Builder baseUrl(String value) { baseUrl = value; return this; }
-        public Builder apiKey(String value) { apiKey = value; return this; }
-        public Builder connectTimeout(Duration value) { connectTimeout = Objects.requireNonNull(value); return this; }
-        public Builder timeout(Duration value) { timeout = Objects.requireNonNull(value); return this; }
-        public Builder temperature(Double value) { temperature = value; return this; }
-        public Builder maxTokens(Integer value) { maxTokens = value; return this; }
-        public Builder headers(Map<String, String> value) { headers = Objects.requireNonNull(value); return this; }
-        public Builder httpClient(HttpClient value) { httpClient = value; return this; }
-        public Builder objectMapper(ObjectMapper value) { objectMapper = value; return this; }
-        public Builder extensions(Map<String, Object> value) { extensions = Objects.requireNonNull(value); return this; }
-        public Builder api(Api value) { api = Objects.requireNonNull(value, "api"); return this; }
-        public Builder responsesApi() { api = Api.RESPONSES; return this; }
-        public OpenAiCompatibleChatModel build() { return new OpenAiCompatibleChatModel(this); }
+        public Builder modelName(String value) {
+            modelName = value;
+            return this;
+        }
+
+        public Builder baseUrl(String value) {
+            baseUrl = value;
+            return this;
+        }
+
+        public Builder apiKey(String value) {
+            apiKey = value;
+            return this;
+        }
+
+        public Builder authenticator(RequestAuthenticator value) {
+            authenticator = Objects.requireNonNull(value);
+            return this;
+        }
+
+        public Builder connectTimeout(Duration value) {
+            connectTimeout = Objects.requireNonNull(value);
+            return this;
+        }
+
+        public Builder timeout(Duration value) {
+            timeout = Objects.requireNonNull(value);
+            return this;
+        }
+
+        public Builder temperature(Double value) {
+            temperature = value;
+            return this;
+        }
+
+        public Builder maxTokens(Integer value) {
+            maxTokens = value;
+            return this;
+        }
+
+        public Builder headers(Map<String, String> value) {
+            headers = Objects.requireNonNull(value);
+            return this;
+        }
+
+        public Builder httpClient(HttpClient value) {
+            httpClient = value;
+            return this;
+        }
+
+        public Builder objectMapper(ObjectMapper value) {
+            objectMapper = value;
+            return this;
+        }
+
+        public Builder extensions(Map<String, Object> value) {
+            extensions = Objects.requireNonNull(value);
+            return this;
+        }
+
+        public Builder api(Api value) {
+            api = Objects.requireNonNull(value, "api");
+            return this;
+        }
+
+        public Builder responsesApi() {
+            api = Api.RESPONSES;
+            return this;
+        }
+
+        public OpenAiCompatibleChatModel build() {
+            return new OpenAiCompatibleChatModel(this);
+        }
     }
 }

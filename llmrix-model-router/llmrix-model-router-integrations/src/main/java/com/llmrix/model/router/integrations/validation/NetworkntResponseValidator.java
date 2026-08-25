@@ -5,18 +5,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.ChatResponse;
-import com.llmrix.model.router.core.api.ResponseFormat;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatResponse;
+import com.llmrix.model.router.core.api.chat.ResponseFormat;
 import com.llmrix.model.router.core.exception.InvalidRequestException;
 
 import java.util.Objects;
 
-/** JSON Schema validator backed by networknt; the dependency remains optional. */
+/**
+ * JSON Schema validator backed by networknt; the dependency remains optional.
+ */
 public final class NetworkntResponseValidator implements ResponseValidator {
     private final ObjectMapper mapper;
 
-    public NetworkntResponseValidator() { this(new ObjectMapper()); }
+    public NetworkntResponseValidator() {
+        this(new ObjectMapper());
+    }
 
     public NetworkntResponseValidator(ObjectMapper mapper) {
         this.mapper = Objects.requireNonNull(mapper, "mapper");

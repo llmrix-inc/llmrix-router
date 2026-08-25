@@ -1,9 +1,9 @@
 package com.llmrix.model.router.integrations.evaluation;
 
-import com.llmrix.model.router.core.api.ChatChunk;
-import com.llmrix.model.router.core.api.ChatModel;
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.ChatResponse;
+import com.llmrix.model.router.core.api.chat.ChatChunk;
+import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatResponse;
 
 import java.time.Duration;
 import java.util.Map;
@@ -14,7 +14,9 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-/** Executes sampled, side-effect-free shadow calls without affecting the primary result. */
+/**
+ * Executes sampled, side-effect-free shadow calls without affecting the primary result.
+ */
 public final class OnlineShadowChatModel implements ChatModel {
     private final ChatModel primary;
     private final Map<String, ChatModel> shadows;
@@ -29,9 +31,11 @@ public final class OnlineShadowChatModel implements ChatModel {
                                  OnlineShadowListener listener) {
         this.primary = Objects.requireNonNull(primary, "primary");
         this.shadows = Map.copyOf(shadows);
-        if (!Double.isFinite(sampleRate) || sampleRate < 0 || sampleRate > 1) throw new IllegalArgumentException("sampleRate must be between 0 and 1");
+        if (!Double.isFinite(sampleRate) || sampleRate < 0 || sampleRate > 1)
+            throw new IllegalArgumentException("sampleRate must be between 0 and 1");
         if (maxConcurrency < 1) throw new IllegalArgumentException("maxConcurrency must be > 0");
-        if (timeout == null || timeout.isZero() || timeout.isNegative()) throw new IllegalArgumentException("timeout must be positive");
+        if (timeout == null || timeout.isZero() || timeout.isNegative())
+            throw new IllegalArgumentException("timeout must be positive");
         this.sampleRate = sampleRate;
         this.timeout = timeout;
         this.executor = Objects.requireNonNull(executor, "executor");
@@ -39,16 +43,29 @@ public final class OnlineShadowChatModel implements ChatModel {
         this.listener = listener == null ? OnlineShadowListener.NOOP : listener;
     }
 
-    @Override public ChatResponse chat(ChatRequest request) { launch(request); return primary.chat(request); }
-    @Override public java.util.concurrent.CompletionStage<ChatResponse> chatAsync(ChatRequest request) {
-        launch(request); return primary.chatAsync(request);
+    @Override
+    public ChatResponse chat(ChatRequest request) {
+        launch(request);
+        return primary.chat(request);
     }
-    @Override public Flow.Publisher<ChatChunk> stream(ChatRequest request) {
-        return subscriber -> { launch(request); primary.stream(request).subscribe(subscriber); };
+
+    @Override
+    public java.util.concurrent.CompletionStage<ChatResponse> chatAsync(ChatRequest request) {
+        launch(request);
+        return primary.chatAsync(request);
+    }
+
+    @Override
+    public Flow.Publisher<ChatChunk> stream(ChatRequest request) {
+        return subscriber -> {
+            launch(request);
+            primary.stream(request).subscribe(subscriber);
+        };
     }
 
     private void launch(ChatRequest request) {
-        if (!request.tools().isEmpty() || shadows.isEmpty() || ThreadLocalRandom.current().nextDouble() >= sampleRate) return;
+        if (!request.tools().isEmpty() || shadows.isEmpty() || ThreadLocalRandom.current().nextDouble() >= sampleRate)
+            return;
         shadows.forEach((id, shadow) -> {
             if (!permits.tryAcquire()) return;
             executor.execute(() -> {
@@ -56,13 +73,16 @@ public final class OnlineShadowChatModel implements ChatModel {
                 Throwable failure = null;
                 try {
                     shadow.chatAsync(request).toCompletableFuture().get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-                } catch (Throwable error) { failure = unwrap(error); }
-                finally {
+                } catch (Throwable error) {
+                    failure = unwrap(error);
+                } finally {
                     permits.release();
                     Throwable result = failure;
-                    try { listener.completed(id, System.nanoTime() - started, result == null,
-                            result == null ? null : result.getClass().getSimpleName()); }
-                    catch (RuntimeException ignored) { }
+                    try {
+                        listener.completed(id, System.nanoTime() - started, result == null,
+                                result == null ? null : result.getClass().getSimpleName());
+                    } catch (RuntimeException ignored) {
+                    }
                 }
             });
         });
@@ -70,7 +90,8 @@ public final class OnlineShadowChatModel implements ChatModel {
 
     private static Throwable unwrap(Throwable error) {
         if ((error instanceof java.util.concurrent.ExecutionException
-                || error instanceof java.util.concurrent.CompletionException) && error.getCause() != null) return error.getCause();
+                || error instanceof java.util.concurrent.CompletionException) && error.getCause() != null)
+            return error.getCause();
         return error;
     }
 }

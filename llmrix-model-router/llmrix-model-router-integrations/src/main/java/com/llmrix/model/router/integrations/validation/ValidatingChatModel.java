@@ -2,12 +2,12 @@ package com.llmrix.model.router.integrations.validation;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.llmrix.model.router.core.api.ChatModel;
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.ChatResponse;
-import com.llmrix.model.router.core.api.ResponseFormat;
-import com.llmrix.model.router.core.api.ChatChunk;
-import com.llmrix.model.router.core.api.ToolCallAccumulator;
+import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatResponse;
+import com.llmrix.model.router.core.api.chat.ResponseFormat;
+import com.llmrix.model.router.core.api.chat.ChatChunk;
+import com.llmrix.model.router.core.stream.ToolCallAccumulator;
 import com.llmrix.model.router.core.exception.InvalidRequestException;
 
 import java.util.Objects;
@@ -17,7 +17,9 @@ import java.util.concurrent.Flow;
 import java.util.ArrayList;
 import java.util.Map;
 
-/** Adds response validation without coupling Core to a JSON Schema implementation. */
+/**
+ * Adds response validation without coupling Core to a JSON Schema implementation.
+ */
 public final class ValidatingChatModel implements ChatModel {
     private final ChatModel delegate;
     private final ResponseValidator validator;
@@ -96,15 +98,25 @@ public final class ValidatingChatModel implements ChatModel {
             private final ToolCallAccumulator toolCalls = new ToolCallAccumulator();
             private boolean terminated;
 
-            @Override public void onSubscribe(Flow.Subscription subscription) {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
                 upstream = subscription;
                 downstream.onSubscribe(new Flow.Subscription() {
-                    @Override public void request(long n) { upstream.request(n); }
-                    @Override public void cancel() { terminated = true; upstream.cancel(); }
+                    @Override
+                    public void request(long n) {
+                        upstream.request(n);
+                    }
+
+                    @Override
+                    public void cancel() {
+                        terminated = true;
+                        upstream.cancel();
+                    }
                 });
             }
 
-            @Override public void onNext(ChatChunk chunk) {
+            @Override
+            public void onNext(ChatChunk chunk) {
                 if (terminated) return;
                 text.append(chunk.text());
                 toolCalls.add(chunk);
@@ -126,12 +138,20 @@ public final class ValidatingChatModel implements ChatModel {
                 }
             }
 
-            @Override public void onError(Throwable throwable) {
-                if (!terminated) { terminated = true; downstream.onError(throwable); }
+            @Override
+            public void onError(Throwable throwable) {
+                if (!terminated) {
+                    terminated = true;
+                    downstream.onError(throwable);
+                }
             }
 
-            @Override public void onComplete() {
-                if (!terminated) { terminated = true; downstream.onComplete(); }
+            @Override
+            public void onComplete() {
+                if (!terminated) {
+                    terminated = true;
+                    downstream.onComplete();
+                }
             }
         });
     }

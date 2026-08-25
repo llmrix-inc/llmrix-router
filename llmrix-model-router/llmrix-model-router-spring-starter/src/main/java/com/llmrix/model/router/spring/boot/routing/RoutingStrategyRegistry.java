@@ -28,4 +28,8 @@ public final class RoutingStrategyRegistry {
         if (strategy == null) throw new IllegalArgumentException("unknown routing strategy: " + name);
         return strategy;
     }
+
+    public Map<String, RoutingStrategy> all() {
+        return Map.copyOf(strategies);
+    }
 }

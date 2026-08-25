@@ -11,15 +11,15 @@
 </head>
 <body>
   <header>
-    <div class="brand"><div class="mark">LX</div><div><h1>LLMRix Model Router Architecture</h1><div class="subtitle">Multi-model routing and orchestration runtime</div></div></div>
+    <div class="brand"><div class="mark">LX</div><div><h1>LLMRix Model Router Architecture</h1><div class="subtitle">Core routing, provider components, and OpenAI-compatible HTTP</div></div></div>
     <nav aria-label="Diagram controls">
       <button id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button><button id="reset" title="Reset zoom" aria-label="Reset zoom">↺</button><button id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button><button id="fullscreen" title="Fullscreen" aria-label="Fullscreen">⛶</button>
       <a class="tool" href="llmrix-architecture.svg" download title="Download SVG" aria-label="Download SVG">SVG</a>
     </nav>
   </header>
-  <main><section class="viewport" id="viewport" aria-label="LLMRix architecture diagram"><div class="canvas" id="canvas"><object data="llmrix-architecture.svg" type="image/svg+xml">LLMRix architecture diagram</object></div><div class="status" id="status">100% · ARCH-001 · RUNTIME VIEW</div></section></main>
+  <main><section class="viewport" id="viewport" aria-label="LLMRix architecture diagram"><div class="canvas" id="canvas"><object data="llmrix-architecture.svg" type="image/svg+xml">LLMRix architecture diagram</object></div><div class="status" id="status">100% · ARCH-002 · RUNTIME VIEW</div></section></main>
   <script>
-    const canvas=document.getElementById('canvas'),status=document.getElementById('status'),viewport=document.getElementById('viewport');let scale=1;const render=()=>{canvas.style.transform=`scale(${scale})`;status.textContent=`${Math.round(scale*100)}% · ARCH-001 · RUNTIME VIEW`};document.getElementById('zoomIn').onclick=()=>{scale=Math.min(2,scale+.1);render()};document.getElementById('zoomOut').onclick=()=>{scale=Math.max(.5,scale-.1);render()};document.getElementById('reset').onclick=()=>{scale=1;render()};document.getElementById('fullscreen').onclick=()=>viewport.requestFullscreen?.();viewport.addEventListener('wheel',e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();scale=Math.max(.5,Math.min(2,scale+(e.deltaY<0?.08:-.08)));render()},{passive:false});
+    const canvas=document.getElementById('canvas'),status=document.getElementById('status'),viewport=document.getElementById('viewport');let scale=1;const render=()=>{canvas.style.transform=`scale(${scale})`;status.textContent=`${Math.round(scale*100)}% · ARCH-002 · RUNTIME VIEW`};document.getElementById('zoomIn').onclick=()=>{scale=Math.min(2,scale+.1);render()};document.getElementById('zoomOut').onclick=()=>{scale=Math.max(.5,scale-.1);render()};document.getElementById('reset').onclick=()=>{scale=1;render()};document.getElementById('fullscreen').onclick=()=>viewport.requestFullscreen?.();viewport.addEventListener('wheel',e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();scale=Math.max(.5,Math.min(2,scale+(e.deltaY<0?.08:-.08)));render()},{passive:false});
   </script>
 </body>
 </html>

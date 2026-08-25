@@ -15,12 +15,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>llmrix-model-router-core</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>llmrix-model-router-integrations</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

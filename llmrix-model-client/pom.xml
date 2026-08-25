@@ -16,5 +16,4 @@
         <module>llmrix-model-orion</module>
         <module>llmrix-model-orion-spring-starter</module>
     </modules>
-
 </project>

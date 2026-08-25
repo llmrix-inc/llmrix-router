@@ -1,0 +1,99 @@
+llmrix:
+  model:
+    router:
+      default-route: general
+      routes:
+        general:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: openrouter/free
+            - integration: openrouter
+              model: minimax/minimax-m3:free
+            - integration: openrouter
+              model: google/gemma-4-31b-it:free
+            - integration: openrouter
+              model: z-ai/glm-5.2:free
+        reasoning:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: nvidia/nemotron-3-super-120b-a12b:free
+            - integration: openrouter
+              model: minimax/minimax-m2.7:free
+            - integration: openrouter
+              model: z-ai/glm-5.2:free
+        code:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: cohere/north-mini-code:free
+            - integration: openrouter
+              model: z-ai/glm-5.2:free
+            - integration: openrouter
+              model: nvidia/nemotron-3-super-120b-a12b:free
+        vision:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: google/gemma-4-31b-it:free
+            - integration: openrouter
+              model: google/gemma-4-26b-a4b-it:free
+            - integration: openrouter
+              model: minimax/minimax-m3:free
+            - integration: openrouter
+              model: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+        multimodal:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: thinkingmachines/inkling:free
+            - integration: openrouter
+              model: thinkingmachines/inkling-small:free
+            - integration: openrouter
+              model: google/gemma-4-31b-it:free
+            - integration: openrouter
+              model: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+        long-context:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: nvidia/nemotron-3-super-120b-a12b:free
+      execution:
+        timeout: 60s
+        max-retries: 1
+      state:
+        mode: local
+      integrations:
+        openrouter:
+          provider: openrouter
+          base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+          api-key: ${OPENROUTER_API_KEY}
+          models:
+            - name: openrouter/free
+              capabilities: [ chat, tools, vision ]
+            - name: minimax/minimax-m3:free
+              capabilities: [ chat, tools, vision, video-input ]
+            - name: google/gemma-4-31b-it:free
+              capabilities: [ chat, tools, vision, video-input ]
+            - name: google/gemma-4-26b-a4b-it:free
+              capabilities: [ chat, tools, vision, video-input ]
+            - name: z-ai/glm-5.2:free
+              capabilities: [ chat, tools, code, reasoning ]
+            - name: nvidia/nemotron-3-super-120b-a12b:free
+              capabilities: [ chat, tools, reasoning, long-context ]
+            - name: minimax/minimax-m2.7:free
+              capabilities: [ chat, tools, reasoning ]
+            - name: cohere/north-mini-code:free
+              capabilities: [ chat, tools, code ]
+            - name: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+              capabilities: [ chat, tools, vision, reasoning, video-input, audio-input ]
+            - name: thinkingmachines/inkling:free
+              capabilities: [ chat, vision ]
+            - name: thinkingmachines/inkling-small:free
+              capabilities: [ chat, vision ]
+      http:
+        enabled: true
+        auth:
+          mode: api-key
+          bootstrap-key: ${LLMRIX_MODEL_ROUTER_API_KEY}

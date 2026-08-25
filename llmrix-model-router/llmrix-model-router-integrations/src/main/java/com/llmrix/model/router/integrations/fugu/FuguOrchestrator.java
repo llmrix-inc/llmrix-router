@@ -1,16 +1,16 @@
 package com.llmrix.model.router.integrations.fugu;
 
-import com.llmrix.model.router.core.api.ChatModel;
-import com.llmrix.model.router.core.api.ChatRequest;
-import com.llmrix.model.router.core.api.ChatResponse;
+import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.ChatResponse;
 import com.llmrix.model.router.core.api.Usage;
-import com.llmrix.model.router.core.api.ChatChunk;
+import com.llmrix.model.router.core.api.chat.ChatChunk;
 import com.llmrix.model.router.core.exception.BudgetExceededException;
 import com.llmrix.model.router.core.exception.ModelTimeoutException;
 import com.llmrix.model.router.core.exception.ModelException;
-import com.llmrix.model.router.core.candidate.ModelPricing;
-import com.llmrix.model.router.core.execution.RouterStateStore;
-import com.llmrix.model.router.core.execution.HealthState;
+import com.llmrix.model.router.core.model.ModelPricing;
+import com.llmrix.model.router.core.state.RouterStateStore;
+import com.llmrix.model.router.core.state.HealthState;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,14 +85,18 @@ public final class FuguOrchestrator implements ChatModel {
             throw new IllegalArgumentException("all Fugu candidates require pricing when maxCostUsd is configured");
         }
         fallbacks.forEach((primary, backups) -> {
-            if (!candidates.containsKey(primary)) throw new IllegalArgumentException("fallback primary is unknown: " + primary);
+            if (!candidates.containsKey(primary))
+                throw new IllegalArgumentException("fallback primary is unknown: " + primary);
             backups.forEach(backup -> {
-                if (!candidates.containsKey(backup)) throw new IllegalArgumentException("fallback candidate is unknown: " + backup);
+                if (!candidates.containsKey(backup))
+                    throw new IllegalArgumentException("fallback candidate is unknown: " + backup);
             });
         });
     }
 
-    public static Builder builder() { return new Builder(); }
+    public static Builder builder() {
+        return new Builder();
+    }
 
     @Override
     public ChatResponse chat(ChatRequest request) {
@@ -142,7 +146,8 @@ public final class FuguOrchestrator implements ChatModel {
             private int stage;
             private boolean completed;
 
-            @Override public synchronized void request(long n) {
+            @Override
+            public synchronized void request(long n) {
                 if (cancelled.get() || completed) return;
                 if (n <= 0) {
                     completed = true;
@@ -165,7 +170,8 @@ public final class FuguOrchestrator implements ChatModel {
                 drain(subscriber);
             }
 
-            @Override public synchronized void cancel() {
+            @Override
+            public synchronized void cancel() {
                 if (!cancelled.compareAndSet(false, true)) return;
                 CompletableFuture<ChatResponse> active = future.getAndSet(null);
                 if (active != null) active.cancel(true);
@@ -360,7 +366,10 @@ public final class FuguOrchestrator implements ChatModel {
     }
 
     private static void notifySafely(Runnable notification) {
-        try { notification.run(); } catch (RuntimeException ignored) { }
+        try {
+            notification.run();
+        } catch (RuntimeException ignored) {
+        }
     }
 
     private boolean startsWithAccept(String response) {
@@ -374,7 +383,23 @@ public final class FuguOrchestrator implements ChatModel {
                 Map.of("fugu.turns", trace, "fugu.termination", termination));
     }
 
-    private record Invocation(String candidateId, ChatResponse response) { }
+    private static final class Invocation {
+        private final String candidateId;
+        private final ChatResponse response;
+
+        private Invocation(String candidateId, ChatResponse response) {
+            this.candidateId = candidateId;
+            this.response = response;
+        }
+
+        private String candidateId() {
+            return candidateId;
+        }
+
+        private ChatResponse response() {
+            return response;
+        }
+    }
 
     public static final class Builder {
         private final Map<String, ChatModel> candidates = new LinkedHashMap<>();
@@ -408,33 +433,117 @@ public final class FuguOrchestrator implements ChatModel {
             pricing.put(id, ModelPricing.UNKNOWN);
             return this;
         }
+
         public Builder candidate(String id, ChatModel model, ModelPricing modelPricing) {
             candidate(id, model);
             pricing.put(id, Objects.requireNonNull(modelPricing, "modelPricing"));
             return this;
         }
-        public Builder router(FuguRouter value) { router = value; return this; }
-        public Builder maxTurns(int value) { if (value < 1) throw new IllegalArgumentException("maxTurns must be > 0"); maxTurns = value; return this; }
-        public Builder acceptToken(String value) { if (value == null || value.isBlank()) throw new IllegalArgumentException("acceptToken must not be blank"); acceptToken = value; return this; }
-        public Builder timeout(Duration value) { timeout = Objects.requireNonNull(value, "timeout"); if (value.isNegative() || value.isZero()) throw new IllegalArgumentException("timeout must be positive"); return this; }
-        public Builder tokenBudget(int value) { if (value < 1) throw new IllegalArgumentException("tokenBudget must be > 0"); tokenBudget = value; return this; }
-        public Builder stopCondition(FuguStopCondition value) { stopCondition = Objects.requireNonNull(value, "stopCondition"); return this; }
-        public Builder executor(ExecutorService value) { executor = Objects.requireNonNull(value, "executor"); return this; }
-        public Builder asyncExecutor(ExecutorService value) { asyncExecutor = Objects.requireNonNull(value, "asyncExecutor"); return this; }
-        public Builder promptTemplate(FuguPromptTemplate value) { promptTemplate = Objects.requireNonNull(value, "promptTemplate"); return this; }
-        public Builder listener(FuguListener value) { listener = Objects.requireNonNull(value, "listener"); return this; }
-        public Builder maxRetries(int value) { if (value < 0) throw new IllegalArgumentException("maxRetries must be >= 0"); maxRetries = value; return this; }
-        public Builder retryOn(Predicate<RuntimeException> value) { retryPredicate = Objects.requireNonNull(value, "retryPredicate"); return this; }
+
+        public Builder router(FuguRouter value) {
+            router = value;
+            return this;
+        }
+
+        public Builder maxTurns(int value) {
+            if (value < 1) throw new IllegalArgumentException("maxTurns must be > 0");
+            maxTurns = value;
+            return this;
+        }
+
+        public Builder acceptToken(String value) {
+            if (value == null || value.isBlank()) throw new IllegalArgumentException("acceptToken must not be blank");
+            acceptToken = value;
+            return this;
+        }
+
+        public Builder timeout(Duration value) {
+            timeout = Objects.requireNonNull(value, "timeout");
+            if (value.isNegative() || value.isZero()) throw new IllegalArgumentException("timeout must be positive");
+            return this;
+        }
+
+        public Builder tokenBudget(int value) {
+            if (value < 1) throw new IllegalArgumentException("tokenBudget must be > 0");
+            tokenBudget = value;
+            return this;
+        }
+
+        public Builder stopCondition(FuguStopCondition value) {
+            stopCondition = Objects.requireNonNull(value, "stopCondition");
+            return this;
+        }
+
+        public Builder executor(ExecutorService value) {
+            executor = Objects.requireNonNull(value, "executor");
+            return this;
+        }
+
+        public Builder asyncExecutor(ExecutorService value) {
+            asyncExecutor = Objects.requireNonNull(value, "asyncExecutor");
+            return this;
+        }
+
+        public Builder promptTemplate(FuguPromptTemplate value) {
+            promptTemplate = Objects.requireNonNull(value, "promptTemplate");
+            return this;
+        }
+
+        public Builder listener(FuguListener value) {
+            listener = Objects.requireNonNull(value, "listener");
+            return this;
+        }
+
+        public Builder maxRetries(int value) {
+            if (value < 0) throw new IllegalArgumentException("maxRetries must be >= 0");
+            maxRetries = value;
+            return this;
+        }
+
+        public Builder retryOn(Predicate<RuntimeException> value) {
+            retryPredicate = Objects.requireNonNull(value, "retryPredicate");
+            return this;
+        }
+
         public Builder fallbacks(String primary, String... backups) {
-            if (primary == null || primary.isBlank()) throw new IllegalArgumentException("fallback primary must not be blank");
+            if (primary == null || primary.isBlank())
+                throw new IllegalArgumentException("fallback primary must not be blank");
             fallbacks.put(primary, List.of(backups));
             return this;
         }
-        public Builder fallbackOn(Predicate<RuntimeException> value) { fallbackPredicate = Objects.requireNonNull(value, "fallbackPredicate"); return this; }
-        public Builder cooldown(Duration value) { cooldown = Objects.requireNonNull(value, "cooldown"); if (value.isNegative() || value.isZero()) throw new IllegalArgumentException("cooldown must be positive"); return this; }
-        public Builder stateStore(RouterStateStore value) { stateStore = Objects.requireNonNull(value, "stateStore"); return this; }
-        public Builder stateNamespace(String value) { if (value == null || value.isBlank()) throw new IllegalArgumentException("stateNamespace must not be blank"); stateNamespace = value; return this; }
-        public Builder maxCostUsd(double value) { if (!Double.isFinite(value) || value < 0) throw new IllegalArgumentException("maxCostUsd must be finite and >= 0"); maxCostUsd = value; return this; }
-        public FuguOrchestrator build() { return new FuguOrchestrator(this); }
+
+        public Builder fallbackOn(Predicate<RuntimeException> value) {
+            fallbackPredicate = Objects.requireNonNull(value, "fallbackPredicate");
+            return this;
+        }
+
+        public Builder cooldown(Duration value) {
+            cooldown = Objects.requireNonNull(value, "cooldown");
+            if (value.isNegative() || value.isZero()) throw new IllegalArgumentException("cooldown must be positive");
+            return this;
+        }
+
+        public Builder stateStore(RouterStateStore value) {
+            stateStore = Objects.requireNonNull(value, "stateStore");
+            return this;
+        }
+
+        public Builder stateNamespace(String value) {
+            if (value == null || value.isBlank())
+                throw new IllegalArgumentException("stateNamespace must not be blank");
+            stateNamespace = value;
+            return this;
+        }
+
+        public Builder maxCostUsd(double value) {
+            if (!Double.isFinite(value) || value < 0)
+                throw new IllegalArgumentException("maxCostUsd must be finite and >= 0");
+            maxCostUsd = value;
+            return this;
+        }
+
+        public FuguOrchestrator build() {
+            return new FuguOrchestrator(this);
+        }
     }
 }

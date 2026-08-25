@@ -18,9 +18,13 @@ public class ModelException extends RuntimeException {
         return retryable;
     }
 
-    public int statusCode() { return statusCode; }
+    public int statusCode() {
+        return statusCode;
+    }
 
-    /** Adds transport context without changing the stable exception subtype. */
+    /**
+     * Adds transport context without changing the stable exception subtype.
+     */
     public ModelException statusCode(int value) {
         if (value < 100 || value > 599) throw new IllegalArgumentException("statusCode must be a valid HTTP status");
         this.statusCode = value;
