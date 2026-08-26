@@ -17,7 +17,7 @@ For an existing Spring Boot application, add the Router starter and a web runtim
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-spring-starter</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
 </dependency>
 <dependency>
   <groupId>org.springframework.boot</groupId>
@@ -177,7 +177,7 @@ The runnable server example is in `llmrix-model-router-server-examples`:
 
 ```bash
 mvn -pl :llmrix-model-router-server-examples -am package -DskipTests
-java -jar llmrix-model-examples/llmrix-model-router-server-examples/target/llmrix-model-router-server-examples-1.0.0-exec.jar
+java -jar llmrix-model-examples/llmrix-model-router-server-examples/target/llmrix-model-router-server-examples-1.0.1-exec.jar
 ```
 
 The default port is `8080`. `API_KEY` is the Bearer key for the Router HTTP API and must match

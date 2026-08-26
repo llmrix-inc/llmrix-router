@@ -9,7 +9,7 @@ names rather than upstream provider model IDs.
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-orion</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
 </dependency>
 ```
 
@@ -163,7 +163,7 @@ Add the optional Spring integration instead of constructing the client manually:
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-orion-spring-starter</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
 </dependency>
 ```
 

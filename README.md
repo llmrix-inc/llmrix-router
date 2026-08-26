@@ -11,13 +11,14 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"></a>
   <a href="#requirements"><img src="https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java Version"></a>
   <a href="docs/server.md"><img src="https://img.shields.io/badge/Spring%20Boot-3.x-6db33f?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot"></a>
-  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="Version">
+  <a href="https://central.sonatype.com/artifact/com.llmrix.model/llmrix-model-router-core"><img src="https://img.shields.io/maven-central/v/com.llmrix.model/llmrix-model-router-core?style=for-the-badge&label=Maven%20Central&color=blue" alt="Maven Central"></a>
 </p>
 <p align="center">
   <a href="#why-llmrix">Why LLMRix</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#modules">Modules</a> •
   <a href="#quick-start">Quick Start</a> •
+  <a href="#http-protocol">HTTP Protocol</a> •
   <a href="docs/server.md">Server</a> •
   <a href="docs/client.md">Client</a>
 </p>
@@ -27,7 +28,7 @@ LLMRix exposes multiple model providers through one stable `ChatModel` interface
 
 Use it as an embedded Java SDK, a Spring Boot starter, or an OpenAI-compatible routing service.
 
-> Project status: General Availability (`1.0.0`). The Java API and configuration model are production-ready, with Semantic Versioning strictly enforced.
+> Project status: General Availability (`1.0.1`). The Java API and configuration model are production-ready, with Semantic Versioning strictly enforced. Published to [Maven Central](https://central.sonatype.com/artifact/com.llmrix.model/llmrix-model-router-core).
 
 ## Why LLMRix
 
@@ -78,12 +79,12 @@ The framework owns routing semantics and request correctness. Infrastructure rem
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-core</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
 </dependency>
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-integrations</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
 </dependency>
 ```
 
@@ -152,10 +153,128 @@ Every request follows one deterministic execution pipeline:
 
 Built-in strategies include priority, round-robin, weighted random, balanced scoring, semantic scoring, and contextual bandit selection. Custom policies implement `RoutingStrategy`; custom runtime persistence implements `RouterStateStore` or `BanditStateStore`.
 
-## Server Deployment and HTTP Usage
+## HTTP Protocol
 
-Server deployment, Spring Boot configuration, provider integrations, HTTP authentication, endpoint
-catalog, startup commands, and curl examples are documented in [docs/server.md](docs/server.md).
+The Spring Boot starter exposes an OpenAI-compatible HTTP API. The `model` field in every request identifies a configured Router route name (such as `general`, `vision`, or `multimodal`) rather than an upstream provider model ID.
+
+### Enable the HTTP API
+
+```yaml
+llmrix:
+  model:
+    router:
+      http:
+        enabled: true
+        auth:
+          mode: api-key
+          bootstrap-key: ${LLMRIX_MODEL_ROUTER_API_KEY}
+```
+
+```bash
+export BASE_URL=http://127.0.0.1:8080
+export API_KEY=your-llmrix-http-key
+```
+
+### Endpoint Catalog
+
+| Endpoint | Description |
+|---|---|
+| `POST /v1/chat/completions` | Synchronous and SSE streaming chat completions. |
+| `POST /v1/responses` | Core Responses API subset. |
+| `POST /v1/embeddings` | Text or token-array embeddings with `float` and `base64` encoding. |
+| `POST /v1/audio/transcriptions` | Multipart audio transcription. |
+| `POST /v1/audio/translations` | Multipart audio translation. |
+| `POST /v1/audio/speech` | Text-to-speech with a binary audio response. |
+| `POST /v1/images/generations` | Image generation. |
+| `POST /v1/images/edits` | Multipart image editing. |
+| `POST /v1/videos` | Create a video generation task. |
+| `GET /v1/videos/{video_id}` | Retrieve video task status. |
+| `GET /v1/videos/{video_id}/content` | Download completed video content. |
+| `DELETE /v1/videos/{video_id}` | Delete a video task. |
+| `POST /v1/videos/{video_id}/remix` | Create a remix task. |
+| `GET /v1/models` | Available routed model and route identifiers. |
+
+### Chat Completions
+
+**Synchronous**
+
+```bash
+curl --location "${BASE_URL}/v1/chat/completions" \
+  --header "Authorization: Bearer ${API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "general",
+    "messages": [
+      {"role": "user", "content": "Introduce LLMRix Router in three sentences."}
+    ],
+    "temperature": 0
+  }'
+```
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "model": "general",
+  "choices": [
+    {
+      "index": 0,
+      "message": {"role": "assistant", "content": "This is the model response."},
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 18, "completion_tokens": 12, "total_tokens": 30}
+}
+```
+
+**Streaming (SSE)**
+
+```bash
+curl --no-buffer --location "${BASE_URL}/v1/chat/completions" \
+  --header "Authorization: Bearer ${API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "general",
+    "messages": [{"role": "user", "content": "Explain model routing."}],
+    "stream": true
+  }'
+```
+
+```text
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","model":"general","choices":[{"index":0,"delta":{"content":"Model"},"finish_reason":""}]}
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","model":"general","choices":[{"index":0,"delta":{"content":" routing"},"finish_reason":""}]}
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","model":"general","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+data: [DONE]
+```
+
+### Protocol Conventions
+
+**Success envelope.** Chat-style responses return `id`, `object`, `model` (the route name), `choices`, and a nullable `usage` block. Provider names and upstream response bodies are never exposed.
+
+**Error envelope.** Controller-level errors use an OpenAI-shaped structure with `error.message`, `error.type`, `error.code`, and `error.param`. Authentication failures rejected before the controller may use a compact form without `code` or `param`.
+
+**HTTP status codes.**
+
+| Status | `error.type` | Meaning |
+|---:|---|---|
+| `400` | `invalid_request_error` | Invalid request body, parameter, or content format. |
+| `401` | `authentication_error` | Missing or invalid Router Bearer key. |
+| `402` | `billing_error` | The model service requires account capacity. |
+| `403` | `permission_error` | The request is not permitted for the selected model service. |
+| `404` | `invalid_request_error` | The route or requested model resource does not exist. |
+| `429` | `rate_limit_error` | Router quota, concurrency, or model-service rate limit was reached. |
+| `500` | `server_error` | Unclassified application execution failure. |
+| `503` | `server_error` | No model satisfies the request, or the model service is temporarily unavailable. |
+
+Clients should branch on the HTTP status and `error.type` / `error.code`, not on complete message text. Third-party names, credentials, and raw upstream response bodies are never included in the public error message.
+
+### Multimodal Content
+
+Chat Completions accepts `text`, `image_url`, `video_url`, `input_audio`, and `file` content parts. The selected route must declare the corresponding capability (`vision`, `video-input`, `audio-input`, or `file-input`). Speech and video content endpoints return binary data instead of a JSON wrapper.
+
+### Server Deployment
+
+Server deployment, Spring Boot configuration, provider integrations, HTTP authentication, request ID propagation, startup commands, and additional curl examples are documented in [docs/server.md](docs/server.md). The full protocol reference with all endpoints, response shapes, and error formats is in [docs/api.md](docs/api.md).
 
 ## Client Usage
 
