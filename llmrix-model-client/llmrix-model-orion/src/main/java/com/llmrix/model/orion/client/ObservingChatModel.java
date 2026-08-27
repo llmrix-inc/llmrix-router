@@ -42,6 +42,22 @@ final class ObservingChatModel implements ChatModel {
         }
     }
 
+    @Override public boolean supportsStreaming() {
+        return delegate.supportsStreaming();
+    }
+
+    @Override public boolean supportsTools() {
+        return delegate.supportsTools();
+    }
+
+    @Override public boolean supportsStructuredOutput() {
+        return delegate.supportsStructuredOutput();
+    }
+
+    @Override public boolean supportsPromptCache() {
+        return delegate.supportsPromptCache();
+    }
+
     @Override public CompletionStage<ChatResponse> chatAsync(ChatRequest request) {
         Invocation invocation = start();
         CompletionStage<ChatResponse> upstream;

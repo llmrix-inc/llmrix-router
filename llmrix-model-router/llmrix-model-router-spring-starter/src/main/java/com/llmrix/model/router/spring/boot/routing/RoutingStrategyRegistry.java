@@ -17,6 +17,7 @@ public final class RoutingStrategyRegistry {
         register("latency-aware", Strategies.latencyAware());
         register("cost-aware", Strategies.costAware());
         register("balanced", Strategies.balanced());
+        register("cache-aware", Strategies.cacheAware());
     }
 
     public void register(String name, RoutingStrategy strategy) {

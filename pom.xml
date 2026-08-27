@@ -6,7 +6,7 @@
 
     <groupId>com.llmrix.model</groupId>
     <artifactId>llmrix-router</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     <packaging>pom</packaging>
 
     <name>llmrix-router</name>
@@ -49,6 +49,7 @@
     </issueManagement>
 
     <modules>
+        <module>llmrix-model-open</module>
         <module>llmrix-model-router</module>
         <module>llmrix-model-client</module>
         <module>llmrix-model-examples</module>
@@ -56,7 +57,7 @@
 
     <properties>
         <!-- Unified project version for internal module dependency references -->
-        <llmrix-model.version>1.0.1</llmrix-model.version>
+        <llmrix-model.version>1.0.2</llmrix-model.version>
         <java.version>17</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -66,6 +67,7 @@
         <junit.version>5.11.4</junit.version>
         <json-schema-validator.version>1.5.6</json-schema-validator.version>
         <bucket4j.version>8.10.1</bucket4j.version>
+        <caffeine.version>3.1.2</caffeine.version>
         <lettuce.version>6.4.2.RELEASE</lettuce.version>
         <onnxruntime.version>1.22.0</onnxruntime.version>
         <versions-maven-plugin.version>2.13.0</versions-maven-plugin.version>
@@ -100,6 +102,11 @@
                 <version>${junit.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.llmrix.model</groupId>
+                <artifactId>llmrix-model-open</artifactId>
+                <version>${llmrix-model.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.llmrix.model</groupId>
@@ -140,6 +147,11 @@
                 <groupId>com.bucket4j</groupId>
                 <artifactId>bucket4j-core</artifactId>
                 <version>${bucket4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.lettuce</groupId>

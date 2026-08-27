@@ -18,6 +18,7 @@ import com.llmrix.model.router.core.api.chat.ResponseFormat;
 import com.llmrix.model.router.core.stream.ToolCallAccumulator;
 import com.llmrix.model.router.core.exception.PermissionDeniedException;
 import com.llmrix.model.router.core.exception.ContextWindowException;
+import com.llmrix.model.router.core.exception.ModelUnavailableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -288,6 +289,17 @@ class OpenAiCompatibleChatModelTest {
                 400, "{\"error\":{\"code\":\"context_length_exceeded\"}}");
 
         assertThrows(ContextWindowException.class, () -> model.chat("hi"));
+    }
+
+    @Test
+    void treatsServerErrorEnvelopeReturnedAsBadRequestAsRetryableUnavailable() throws IOException {
+        OpenAiCompatibleChatModel model = errorModel(
+                400, "{\"message\":\"model service is temporarily unavailable\","
+                        + "\"type\":\"server_error\",\"code\":null}");
+
+        ModelUnavailableException failure = assertThrows(
+                ModelUnavailableException.class, () -> model.chat("hi"));
+        assertTrue(failure.retryable());
     }
 
     @Test

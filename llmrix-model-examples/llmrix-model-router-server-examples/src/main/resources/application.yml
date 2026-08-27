@@ -5,6 +5,9 @@ llmrix:
       routes:
         general:
           strategy: balanced
+          quota:
+            requests-per-minute: 6000
+            tokens-per-minute: 1000000
           models:
             - integration: openrouter
               model: openrouter/free
@@ -14,6 +17,8 @@ llmrix:
               model: google/gemma-4-31b-it:free
             - integration: openrouter
               model: z-ai/glm-5.2:free
+            - integration: openrouter
+              model: liquid/lfm-2.5-2.6b:free
         reasoning:
           strategy: balanced
           models:
@@ -59,39 +64,89 @@ llmrix:
           models:
             - integration: openrouter
               model: nvidia/nemotron-3-super-120b-a12b:free
+        embeddings:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: liquid/lfm-2.5-embedding-350m:free
+            - integration: openrouter
+              model: nvidia/llama-nemotron-embed-vl-1b-v2:free
+        rerank:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: nvidia/llama-nemotron-rerank-vl-1b-v2:free
+            - integration: openrouter
+              model: qwen/qwen3-reranker-8b
       execution:
         timeout: 60s
         max-retries: 1
       state:
         mode: local
+        local:
+          max-quota-partitions: 10000
+          quota-idle-timeout: 2m
       integrations:
         openrouter:
           provider: openrouter
           base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
-          api-key: ${OPENROUTER_API_KEY}
+          api-key: ${OPENROUTER_API_KEY:}
           models:
             - name: openrouter/free
-              capabilities: [ chat, tools, vision ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              input-modalities: [ vision ]
             - name: minimax/minimax-m3:free
-              capabilities: [ chat, tools, vision, video-input ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              input-modalities: [ vision, video ]
             - name: google/gemma-4-31b-it:free
-              capabilities: [ chat, tools, vision, video-input ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              input-modalities: [ vision, video ]
             - name: google/gemma-4-26b-a4b-it:free
-              capabilities: [ chat, tools, vision, video-input ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              input-modalities: [ vision, video ]
             - name: z-ai/glm-5.2:free
-              capabilities: [ chat, tools, code, reasoning ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              traits: [ code, reasoning ]
             - name: nvidia/nemotron-3-super-120b-a12b:free
-              capabilities: [ chat, tools, reasoning, long-context ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              traits: [ reasoning, long-context ]
             - name: minimax/minimax-m2.7:free
-              capabilities: [ chat, tools, reasoning ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              traits: [ reasoning ]
             - name: cohere/north-mini-code:free
-              capabilities: [ chat, tools, code ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              traits: [ code ]
             - name: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-              capabilities: [ chat, tools, vision, reasoning, video-input, audio-input ]
+              operations: [ chat ]
+              features: [ streaming, tools ]
+              input-modalities: [ vision, video, audio ]
+              traits: [ reasoning ]
             - name: thinkingmachines/inkling:free
-              capabilities: [ chat, vision ]
+              operations: [ chat ]
+              input-modalities: [ vision ]
             - name: thinkingmachines/inkling-small:free
-              capabilities: [ chat, vision ]
+              operations: [ chat ]
+              input-modalities: [ vision ]
+            - name: liquid/lfm-2.5-2.6b:free
+              operations: [ chat ]
+            - name: liquid/lfm-2.5-embedding-350m:free
+              operations: [ embeddings ]
+            - name: nvidia/nemotron-3-embed-1b:free
+              operations: [ embeddings ]
+            - name: nvidia/llama-nemotron-embed-vl-1b-v2:free
+              operations: [ embeddings ]
+            - name: nvidia/llama-nemotron-rerank-vl-1b-v2:free
+              operations: [ rerank ]
+            - name: qwen/qwen3-reranker-8b
+              operations: [ rerank ]
       http:
         enabled: true
         auth:

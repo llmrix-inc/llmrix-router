@@ -11,4 +11,8 @@ public interface ModelProvider {
     String defaultBaseUrl();
 
     ModelClient create(ModelProviderRequest request);
+
+    /** Validates provider and model options before creating network adapters. */
+    default void validate(ModelProviderRequest request) {
+    }
 }

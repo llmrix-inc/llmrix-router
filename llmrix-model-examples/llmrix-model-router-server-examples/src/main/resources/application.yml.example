@@ -1,10 +1,15 @@
 llmrix:
   model:
     router:
+      enabled: true
+      fail-fast: true
       default-route: general
       routes:
         general:
           strategy: balanced
+          quota:
+            requests-per-minute: 6000
+            tokens-per-minute: 1000000
           models:
             - integration: openrouter
               model: openrouter/free
@@ -14,6 +19,8 @@ llmrix:
               model: google/gemma-4-31b-it:free
             - integration: openrouter
               model: z-ai/glm-5.2:free
+            - integration: openrouter
+              model: liquid/lfm-2.5-2.6b:free
         reasoning:
           strategy: balanced
           models:
@@ -59,39 +66,142 @@ llmrix:
           models:
             - integration: openrouter
               model: nvidia/nemotron-3-super-120b-a12b:free
+        embeddings:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: liquid/lfm-2.5-embedding-350m:free
+            - integration: openrouter
+              model: nvidia/nemotron-3-embed-1b:free
+            - integration: openrouter
+              model: nvidia/llama-nemotron-embed-vl-1b-v2:free
+        rerank:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: nvidia/llama-nemotron-rerank-vl-1b-v2:free
+            - integration: openrouter
+              model: qwen/qwen3-reranker-8b
+        local:
+          strategy: balanced
+          models:
+            - integration: ollama
+              model: ${OLLAMA_MODEL:llama3.2}
       execution:
         timeout: 60s
         max-retries: 1
+        retry-delay: 200ms
+        failure-threshold: 3
+        cooldown: 60s
+        first-token-timeout: 15s
+        stream-idle-timeout: 30s
+      observability:
+        enabled: true
+        metrics-enabled: true
+        tracing-enabled: true
+        context-propagation-enabled: true
+        include-candidate-id: true
+        include-routing-reason: true
+        include-cost: true
+        include-prompts: false
+        prompt-max-chars: 1024
+        prompt-routes: [general]
       state:
         mode: local
+        local:
+          max-quota-partitions: 10000
+          quota-idle-timeout: 2m
+        redis:
+          uri: ${REDIS_URI:redis://localhost:6379/0}
+          key-prefix: llmrix:model:router
+          lease-ttl: 2m
+          quota-window: 1m
       integrations:
+        ollama:
+          provider: ollama
+          base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+          models:
+            - name: ${OLLAMA_MODEL:llama3.2}
+              operations: [chat, embeddings]
+              features: [streaming, tools, structured-output]
         openrouter:
           provider: openrouter
           base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
           api-key: ${OPENROUTER_API_KEY}
+          authenticator: bearer
+          api-mode: chat-completions
+          site-url: ${OPENROUTER_SITE_URL:https://localhost}
+          app-name: ${OPENROUTER_APP_NAME:LLMRix Router}
+          options: {}
           models:
             - name: openrouter/free
-              capabilities: [chat, tools, vision]
+              operations: [chat]
+              features: [streaming, tools, structured-output]
+              input-modalities: [vision]
+              traits: [reasoning]
+              max-input-tokens: 128000
+              priority: 100
+              weight: 100
+              input-cost-per-million: 0.0
+              output-cost-per-million: 0.0
+              cached-input-cost-per-million: 0.0
+              cache-write-cost-per-million: 0.0
+              reasoning-cost-per-million: 0.0
+              limits:
+                requests-per-minute: 6000
+                tokens-per-minute: 1000000
+                max-concurrency: 8
             - name: minimax/minimax-m3:free
-              capabilities: [chat, tools, vision, video-input]
+              operations: [chat]
+              features: [streaming, tools]
+              input-modalities: [vision, video]
             - name: google/gemma-4-31b-it:free
-              capabilities: [chat, tools, vision, video-input]
+              operations: [chat]
+              features: [streaming, tools]
+              input-modalities: [vision, video]
             - name: google/gemma-4-26b-a4b-it:free
-              capabilities: [chat, tools, vision, video-input]
+              operations: [chat]
+              features: [streaming, tools]
+              input-modalities: [vision, video]
             - name: z-ai/glm-5.2:free
-              capabilities: [chat, tools, code, reasoning]
+              operations: [chat]
+              features: [streaming, tools]
+              traits: [code, reasoning]
             - name: nvidia/nemotron-3-super-120b-a12b:free
-              capabilities: [chat, tools, reasoning, long-context]
+              operations: [chat]
+              features: [streaming, tools]
+              traits: [reasoning, long-context]
             - name: minimax/minimax-m2.7:free
-              capabilities: [chat, tools, reasoning]
+              operations: [chat]
+              features: [streaming, tools]
+              traits: [reasoning]
             - name: cohere/north-mini-code:free
-              capabilities: [chat, tools, code]
+              operations: [chat]
+              features: [streaming, tools]
+              traits: [code]
             - name: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-              capabilities: [chat, tools, vision, reasoning, video-input, audio-input]
+              operations: [chat]
+              features: [streaming, tools]
+              input-modalities: [vision, video, audio]
+              traits: [reasoning]
             - name: thinkingmachines/inkling:free
-              capabilities: [chat, vision]
+              operations: [chat]
+              input-modalities: [vision]
             - name: thinkingmachines/inkling-small:free
-              capabilities: [chat, vision]
+              operations: [chat]
+              input-modalities: [vision]
+            - name: liquid/lfm-2.5-2.6b:free
+              operations: [chat]
+            - name: liquid/lfm-2.5-embedding-350m:free
+              operations: [embeddings]
+            - name: nvidia/nemotron-3-embed-1b:free
+              operations: [embeddings]
+            - name: nvidia/llama-nemotron-embed-vl-1b-v2:free
+              operations: [embeddings]
+            - name: nvidia/llama-nemotron-rerank-vl-1b-v2:free
+              operations: [rerank]
+            - name: qwen/qwen3-reranker-8b
+              operations: [rerank]
       http:
         enabled: true
         auth:

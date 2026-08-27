@@ -4,11 +4,13 @@ import com.llmrix.model.router.core.engine.RoutedModelOperations;
 import com.llmrix.model.router.core.engine.RoutedModelOperationsRegistry;
 import com.llmrix.model.router.core.routing.RoutingHints;
 import com.llmrix.model.router.core.routing.NoCandidateException;
+import com.llmrix.model.router.integrations.RoutingHintsHttpCodec;
 import com.llmrix.model.router.spring.boot.http.security.AuthenticationResult;
 import com.llmrix.model.router.spring.boot.http.web.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 
 final class OpenAiRoutingContext {
+
     private final RoutedModelOperationsRegistry routes;
 
     OpenAiRoutingContext(RoutedModelOperationsRegistry routes) {
@@ -18,7 +20,6 @@ final class OpenAiRoutingContext {
     RoutedModelOperations route(String model) {
         if (model == null || model.isBlank()) throw new IllegalArgumentException("model is required");
         if (routes == null) throw new NoCandidateException("multi-modal routes are not configured");
-        if (!routes.routeIds().contains(model)) throw new UnknownModelException(model);
         return routes.get(model);
     }
 
@@ -27,14 +28,19 @@ final class OpenAiRoutingContext {
         if (routes == null || routes.routeIds().isEmpty()) {
             throw new NoCandidateException("multi-modal routes are not configured");
         }
-        String route = routes.routeIds().contains("video") ? "video"
-                : routes.routeIds().contains("general") ? "general" : routes.routeIds().iterator().next();
-        return routes.get(route);
+        return routes.get(routes.defaultRoute());
     }
 
     RoutingHints hints(HttpServletRequest request) {
         if (request == null) return RoutingHints.none();
+        RoutingHints decoded = RoutingHintsHttpCodec.decode(request.getHeader(RoutingHintsHttpCodec.HEADER));
         RoutingHints.Builder hints = RoutingHints.builder();
+        decoded.requirements().forEach(value -> hints.require(value));
+        decoded.allowedModels().forEach(value -> hints.allow(value));
+        decoded.deniedModels().forEach(value -> hints.deny(value));
+        if (decoded.maxCostUsd() != null) hints.maxCostUsd(decoded.maxCostUsd());
+        if (decoded.maxLatency() != null) hints.maxLatency(decoded.maxLatency());
+        decoded.attributes().forEach(hints::attribute);
         Object requestId = request.getAttribute(RequestIdFilter.ATTRIBUTE);
         if (requestId instanceof String value && !value.isBlank()) {
             hints.attribute(RoutingHints.REQUEST_ID, value);

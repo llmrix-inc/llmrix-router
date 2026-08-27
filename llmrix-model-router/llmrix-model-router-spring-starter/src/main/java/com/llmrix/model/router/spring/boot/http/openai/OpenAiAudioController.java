@@ -70,12 +70,12 @@ public final class OpenAiAudioController {
 
     @PostMapping(value = "/speech", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<byte[]> speech(@RequestBody JsonNode body, HttpServletRequest servletRequest) {
-        String model = OpenAiEmbeddingController.text(body, "model", true);
-        String input = OpenAiEmbeddingController.text(body, "input", true);
-        String voice = OpenAiEmbeddingController.text(body, "voice", true);
-        String format = OpenAiEmbeddingController.text(body, "response_format", false);
+        String model = OpenAiRequestParser.text(body, "model", true);
+        String input = OpenAiRequestParser.text(body, "input", true);
+        String voice = OpenAiRequestParser.text(body, "voice", true);
+        String format = OpenAiRequestParser.text(body, "response_format", false);
         Double speed = body.hasNonNull("speed") ? body.get("speed").asDouble() : null;
-        String instructions = OpenAiEmbeddingController.text(body, "instructions", false);
+        String instructions = OpenAiRequestParser.text(body, "instructions", false);
         AudioResponse result = routing.route(model).speech(new SpeechRequest(
                 input, voice, format, speed, instructions, routing.hints(servletRequest)));
         return response(result);

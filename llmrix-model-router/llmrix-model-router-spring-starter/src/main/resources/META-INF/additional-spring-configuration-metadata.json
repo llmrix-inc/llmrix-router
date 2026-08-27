@@ -18,6 +18,18 @@
       "description": "Bootstrap Bearer key used by the default HTTP verifier."
     },
     {
+      "name": "llmrix.model.router.state.local.max-quota-partitions",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of in-process quota partitions. New partitions are rejected when full.",
+      "defaultValue": 10000
+    },
+    {
+      "name": "llmrix.model.router.state.local.quota-idle-timeout",
+      "type": "java.time.Duration",
+      "description": "Idle time before an in-process quota partition can expire.",
+      "defaultValue": "2m"
+    },
+    {
       "name": "llmrix.model.router.routes.*.strategy",
       "type": "java.lang.String",
       "description": "Routing strategy ID for this route."
@@ -26,6 +38,16 @@
       "name": "llmrix.model.router.routes.*.models",
       "type": "java.util.List<com.llmrix.model.router.spring.boot.properties.LlmRouterProperties$ModelReference>",
       "description": "Ordered model references available to this route."
+    },
+    {
+      "name": "llmrix.model.router.routes.*.quota.requests-per-minute",
+      "type": "java.lang.Long",
+      "description": "Optional shared requests-per-minute quota for this route."
+    },
+    {
+      "name": "llmrix.model.router.routes.*.quota.tokens-per-minute",
+      "type": "java.lang.Long",
+      "description": "Optional shared tokens-per-minute quota for this route."
     },
     {
       "name": "llmrix.model.router.routes.*.models[].integration",
@@ -59,6 +81,12 @@
       "defaultValue": "bearer"
     },
     {
+      "name": "llmrix.model.router.integrations.*.forward-routing-hints",
+      "type": "java.lang.Boolean",
+      "description": "Forwards the private routing-hints header to the provider. Disabled by default.",
+      "defaultValue": false
+    },
+    {
       "name": "llmrix.model.router.integrations.*.models",
       "type": "java.util.List<com.llmrix.model.router.spring.boot.properties.LlmRouterProperties$Model>",
       "description": "Models exposed by this provider integration. Each item must define a unique name."
@@ -69,9 +97,52 @@
       "description": "Provider model name."
     },
     {
-      "name": "llmrix.model.router.integrations.*.models[].capabilities",
-      "type": "java.util.List<java.lang.String>",
-      "description": "Capabilities implemented by the provider model."
+      "name": "llmrix.model.router.integrations.*.models[].operations",
+      "type": "java.util.Set<com.llmrix.model.router.core.model.ModelOperation>",
+      "description": "Callable operations exposed by the provider model, such as chat, embeddings, or rerank."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models[].features",
+      "type": "java.util.Set<com.llmrix.model.router.core.model.ModelFeature>",
+      "description": "Protocol features exposed by the model, such as streaming, tools, structured-output, or prompt-cache."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models[].input-modalities",
+      "type": "java.util.Set<com.llmrix.model.router.core.model.InputModality>",
+      "description": "Non-text input modalities accepted by the model: vision, audio, video, or file."
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models[].traits",
+      "type": "java.util.Set<com.llmrix.model.router.core.model.ModelTrait>",
+      "description": "Model traits used for routing, such as code, reasoning, or long-context."
+    }
+  ],
+  "hints": [
+    {
+      "name": "llmrix.model.router.integrations.*.models[].operations",
+      "values": [
+        {"value": "chat"}, {"value": "embeddings"}, {"value": "rerank"},
+        {"value": "audio-transcription"}, {"value": "audio-translation"}, {"value": "text-to-speech"},
+        {"value": "image-generation"}, {"value": "image-edit"}, {"value": "video-generation"}
+      ]
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models[].features",
+      "values": [
+        {"value": "streaming"}, {"value": "tools"}, {"value": "structured-output"}, {"value": "prompt-cache"}
+      ]
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models[].input-modalities",
+      "values": [
+        {"value": "vision"}, {"value": "audio"}, {"value": "video"}, {"value": "file"}
+      ]
+    },
+    {
+      "name": "llmrix.model.router.integrations.*.models[].traits",
+      "values": [
+        {"value": "code"}, {"value": "reasoning"}, {"value": "long-context"}
+      ]
     }
   ]
 }

@@ -3,6 +3,7 @@ package com.llmrix.model.router.spring.boot.http.openai;
 import com.llmrix.model.router.spring.boot.http.web.RequestIdFilter;
 
 import com.llmrix.model.router.core.api.chat.ChatResponse;
+import com.llmrix.model.router.core.exception.UnknownRouteException;
 import com.llmrix.model.router.core.engine.RoutedChatModel;
 import com.llmrix.model.router.core.engine.RoutedChatModels;
 import org.junit.jupiter.api.AfterEach;
@@ -17,7 +18,8 @@ import com.llmrix.model.router.core.api.chat.ImagePart;
 import com.llmrix.model.router.core.api.chat.AudioPart;
 import com.llmrix.model.router.core.api.chat.VideoPart;
 import com.llmrix.model.router.core.api.chat.FilePart;
-import com.llmrix.model.router.core.model.Capability;
+import com.llmrix.model.router.core.model.ModelOperation;
+import com.llmrix.model.router.core.model.InputModality;
 import com.llmrix.model.router.core.api.chat.ResponseFormat;
 import com.llmrix.model.router.core.api.chat.ToolCallPart;
 import com.llmrix.model.router.core.api.chat.ToolChoice;
@@ -91,7 +93,7 @@ class OpenAiControllerTest {
 
         assertThatThrownBy(() -> controller.chat(new OpenAiController.CompletionRequest(
                 "missing", List.of(new OpenAiController.CompletionMessage("user", "hi")), false)))
-                .isInstanceOf(UnknownModelException.class)
+                .isInstanceOf(UnknownRouteException.class)
                 .hasMessageContaining("missing");
     }
 
@@ -102,8 +104,8 @@ class OpenAiControllerTest {
                 .target("capture", request -> {
                     captured.set(request);
                     return ChatResponse.of("ok");
-                }, target -> target.capabilities(Capability.CHAT, Capability.VIDEO_INPUT,
-                        Capability.FILE_INPUT, Capability.AUDIO_INPUT)).build();
+                }, target -> target.operations(ModelOperation.CHAT)
+                        .inputModalities(InputModality.VIDEO, InputModality.FILE, InputModality.AUDIO)).build();
              RoutedChatModels localModels = new RoutedChatModels(Map.of("vision", route))) {
             OpenAiController controller = new OpenAiController(localModels);
             var content = new ObjectMapper().readTree("""
@@ -131,9 +133,17 @@ class OpenAiControllerTest {
     void acceptsOpenAiJsonSchemaResponseFormat() throws Exception {
         AtomicReference<ChatRequest> captured = new AtomicReference<>();
         try (RoutedChatModel route = RoutedChatModel.builder()
-                .target("capture", request -> {
-                    captured.set(request);
-                    return ChatResponse.of("{\"answer\":\"ok\"}");
+                .target("capture", new ChatModel() {
+                    @Override
+                    public ChatResponse chat(ChatRequest request) {
+                        captured.set(request);
+                        return ChatResponse.of("{\"answer\":\"ok\"}");
+                    }
+
+                    @Override
+                    public boolean supportsStructuredOutput() {
+                        return true;
+                    }
                 }).build();
              RoutedChatModels localModels = new RoutedChatModels(Map.of("json", route))) {
             OpenAiController controller = new OpenAiController(localModels);
@@ -224,7 +234,18 @@ class OpenAiControllerTest {
     void mapsResponsesFunctionToolsAndPriorOutputs() throws Exception {
         AtomicReference<ChatRequest> captured = new AtomicReference<>();
         try (RoutedChatModel route = RoutedChatModel.builder()
-                .target("capture", request -> { captured.set(request); return ChatResponse.of("ok"); }).build();
+                .target("capture", new ChatModel() {
+                    @Override
+                    public ChatResponse chat(ChatRequest request) {
+                        captured.set(request);
+                        return ChatResponse.of("ok");
+                    }
+
+                    @Override
+                    public boolean supportsTools() {
+                        return true;
+                    }
+                }).build();
              RoutedChatModels localModels = new RoutedChatModels(Map.of("tools", route))) {
             ObjectMapper mapper = new ObjectMapper();
             var input = mapper.readTree("""

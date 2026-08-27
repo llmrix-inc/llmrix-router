@@ -10,9 +10,13 @@ import com.llmrix.model.router.core.api.chat.FilePart;
 import com.llmrix.model.router.core.api.chat.AudioPart;
 
 import com.llmrix.model.router.core.model.ModelTarget;
+import com.llmrix.model.router.core.model.ModelFeature;
+import com.llmrix.model.router.core.model.InputModality;
+import com.llmrix.model.router.core.model.ModelLimits;
 import com.llmrix.model.router.core.exception.ModelException;
 import com.llmrix.model.router.core.exception.ModelTimeoutException;
 import com.llmrix.model.router.core.exception.ModelUnavailableException;
+import com.llmrix.model.router.core.exception.RateLimitException;
 import com.llmrix.model.router.core.state.HealthState;
 import com.llmrix.model.router.core.state.HealthAttempt;
 import com.llmrix.model.router.core.state.InMemoryRouterStateStore;
@@ -59,6 +63,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public final class RoutedChatModel implements ChatModel, AutoCloseable {
+    private static final System.Logger LOGGER = System.getLogger(RoutedChatModel.class.getName());
+
     private final Map<String, ModelTarget> targets;
     private final Map<String, HealthState> health;
     private final Map<String, QuotaState> quotas;
@@ -73,6 +79,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
     private final String stateNamespace;
     private final Predicate<RuntimeException> retryPredicate;
     private final RoutedModelOperations unary;
+    private final ModelLimits routeQuota;
 
     private RoutedChatModel(Builder builder) {
         if (builder.targets.isEmpty()) throw new IllegalArgumentException("at least one target is required");
@@ -89,6 +96,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
         this.listener = builder.listener;
         this.stateStore = builder.stateStore;
         this.stateNamespace = builder.stateNamespace;
+        this.routeQuota = builder.routeQuota;
         this.retryPredicate = builder.retryPredicate;
         this.ownsExecutor = builder.executor == null;
         this.executor = ownsExecutor ? Executors.newCachedThreadPool(new DaemonThreadFactory()) : builder.executor;
@@ -99,6 +107,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
                 .retryDelay(executionPolicy.retryDelay()).failureThreshold(executionPolicy.failureThreshold())
                 .cooldown(executionPolicy.cooldown()).listener(listener).stateStore(stateStore)
                 .stateNamespace(stateNamespace).retryOn(retryPredicate)
+                .quota(routeQuota)
                 .executor(executor);
         targets.values().forEach(unaryBuilder::target);
         this.unary = unaryBuilder.build();
@@ -127,7 +136,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
     public Flow.Publisher<ChatChunk> stream(ChatRequest request) {
         Objects.requireNonNull(request, "request");
         return subscriber -> {
-            List<RouteCandidate> eligible = eligible(request);
+            List<RouteCandidate> eligible = eligible(request, true);
             if (eligible.isEmpty()) {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
@@ -139,6 +148,17 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
                     }
                 });
                 subscriber.onError(new NoCandidateException("no target satisfies the request constraints"));
+                return;
+            }
+            QuotaState requestQuota;
+            try {
+                requestQuota = acquireRouteQuota(request);
+            } catch (RateLimitException failure) {
+                subscriber.onSubscribe(new Flow.Subscription() {
+                    @Override public void request(long n) { }
+                    @Override public void cancel() { }
+                });
+                subscriber.onError(failure);
                 return;
             }
             ModelTarget selected = strategy.select(request, List.copyOf(eligible));
@@ -215,7 +235,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
             control.configureActivityTimeouts(
                     scheduler, timeoutAction, executionPolicy.firstTokenTimeout(), executionPolicy.streamIdleTimeout());
             executor.execute(() -> streamCandidate(
-                    request, order, 0, 1, relay, control, budget, requestId, started, 0, null));
+                    request, order, 0, 1, relay, control, budget, requestId, started, 0, null, requestQuota));
         };
     }
 
@@ -230,15 +250,15 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
             String requestId,
             long requestStarted,
             int completedAttempts,
-            Throwable previousFailure) {
+            Throwable previousFailure,
+            QuotaState requestQuota) {
         if (control.finished()) return;
         if (candidateIndex >= order.size()) {
             if (!control.finish()) return;
             notifySafely(() -> listener.onRequestCompleted(new RequestCompleted(
                     requestId, order.isEmpty() ? null : order.get(order.size() - 1).id(),
                     System.nanoTime() - requestStarted, false, completedAttempts)));
-            relay.closeExceptionally(new ModelUnavailableException(
-                    "model service is temporarily unavailable", previousFailure));
+            relay.closeExceptionally(terminalFailure(previousFailure));
             return;
         }
         ModelTarget target = order.get(candidateIndex);
@@ -247,14 +267,14 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
         if (quotas.get(target.id()).rejectionReason(request.estimatedInputTokens()) != null) {
             streamCandidate(request, order, candidateIndex + 1, 1, relay, control, budget, requestId, requestStarted,
                     completedAttempts, new com.llmrix.model.router.core.exception.RateLimitException(
-                            "local target quota exceeded: " + target.id()));
+                            "local target quota exceeded: " + target.id()), requestQuota);
             return;
         }
         RequestBudget.Reservation reservation = budget.tryReserve(target, request);
         if (reservation == null) {
             streamCandidate(request, order, candidateIndex + 1, 1, relay, control, budget,
                     requestId, requestStarted, completedAttempts,
-                    new BudgetExceededException("request cost budget exhausted before target: " + target.id()));
+                    new BudgetExceededException("request cost budget exhausted before target: " + target.id()), requestQuota);
             return;
         }
         HealthState candidateHealth = health.get(target.id());
@@ -264,7 +284,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
             streamCandidate(request, order, candidateIndex + 1, 1, relay, control, budget,
                     requestId, requestStarted, completedAttempts,
                     new com.llmrix.model.router.core.exception.RateLimitException(
-                            "local target max concurrency exceeded: " + target.id()));
+                            "local target max concurrency exceeded: " + target.id()), requestQuota);
             return;
         }
         if (!quotas.get(target.id()).tryAcquire(request.estimatedInputTokens())) {
@@ -272,7 +292,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
             budget.release(reservation);
             streamCandidate(request, order, candidateIndex + 1, 1, relay, control, budget, requestId, requestStarted,
                     completedAttempts, new com.llmrix.model.router.core.exception.RateLimitException(
-                            "local target quota exceeded: " + target.id()));
+                            "local target quota exceeded: " + target.id()), requestQuota);
             return;
         }
         notifySafely(() -> listener.onAttemptStarted(new com.llmrix.model.router.core.event.AttemptStarted(
@@ -310,6 +330,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
                     emitted = true;
                     if (item.finished() && !outputTokensRecorded) {
                         quotas.get(target.id()).recordOutputTokens(item.usage().outputTokens());
+                        if (requestQuota != null) requestQuota.recordOutputTokens(item.usage().outputTokens());
                         latestUsage = item.usage();
                         outputTokensRecorded = true;
                     }
@@ -346,8 +367,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
                     StreamAttempt active = control.claimAttempt();
                     if (active == null) return;
                     long duration = System.nanoTime() - attemptStarted;
-                    boolean enteredCooldown = active.healthAttempt().failure(
-                            duration, executionPolicy.failureThreshold(), executionPolicy.cooldown());
+                    boolean enteredCooldown = recordHealthFailure(active.healthAttempt(), failure, duration);
                     if (enteredCooldown) publishCooldown(requestId, target.id());
                     notifySafely(() -> listener.onAttemptCompleted(new AttemptCompleted(
                             requestId, target.id(), attempt, duration, false, failure.getClass().getSimpleName())));
@@ -360,10 +380,10 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
                             && attempt <= executionPolicy.maxRetries()) {
                         waitBeforeRetry(requestStarted + executionPolicy.timeout().toNanos());
                         streamCandidate(request, order, candidateIndex, attempt + 1, relay, control, budget,
-                                requestId, requestStarted, completedAttempts + 1, failure);
+                                requestId, requestStarted, completedAttempts + 1, failure, requestQuota);
                     } else {
                         streamCandidate(request, order, candidateIndex + 1, 1, relay, control, budget,
-                                requestId, requestStarted, completedAttempts + 1, failure);
+                                requestId, requestStarted, completedAttempts + 1, failure, requestQuota);
                     }
                 }
             });
@@ -371,25 +391,24 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
             StreamAttempt active = control.claimAttempt();
             if (active == null) return;
             long duration = System.nanoTime() - attemptStarted;
-            boolean enteredCooldown = active.healthAttempt().failure(
-                    duration, executionPolicy.failureThreshold(), executionPolicy.cooldown());
+            boolean enteredCooldown = recordHealthFailure(active.healthAttempt(), failure, duration);
             if (enteredCooldown) publishCooldown(requestId, target.id());
             notifySafely(() -> listener.onAttemptCompleted(new AttemptCompleted(
                     requestId, target.id(), attempt, duration, false, failure.getClass().getSimpleName())));
             if (retryable(failure) && attempt <= executionPolicy.maxRetries()) {
                 waitBeforeRetry(requestStarted + executionPolicy.timeout().toNanos());
                 streamCandidate(request, order, candidateIndex, attempt + 1, relay, control, budget,
-                        requestId, requestStarted, completedAttempts + 1, failure);
+                        requestId, requestStarted, completedAttempts + 1, failure, requestQuota);
             } else {
                 streamCandidate(request, order, candidateIndex + 1, 1, relay, control, budget,
-                        requestId, requestStarted, completedAttempts + 1, failure);
+                        requestId, requestStarted, completedAttempts + 1, failure, requestQuota);
             }
         }
     }
 
     public RouteExplanation explain(ChatRequest request) {
-        Map<String, String> excluded = exclusions(request);
-        List<RouteCandidate> eligible = eligible(request);
+        Map<String, String> excluded = exclusions(request, false);
+        List<RouteCandidate> eligible = eligible(request, false);
         String selected = eligible.isEmpty() ? null : strategy.select(request, eligible).id();
         return new RouteExplanation(selected, eligible.stream().map(RouteCandidate::id).toList(), excluded);
     }
@@ -402,10 +421,44 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
         return retryPredicate.test(failure);
     }
 
+    private boolean recordHealthFailure(HealthAttempt attempt, Throwable failure, long durationNanos) {
+        if (failure instanceof ModelException modelFailure && !modelFailure.retryable()) {
+            attempt.cancel();
+            return false;
+        }
+        return attempt.failure(durationNanos, executionPolicy.failureThreshold(), executionPolicy.cooldown());
+    }
+
+    private static RuntimeException terminalFailure(Throwable failure) {
+        if (failure instanceof ModelException modelFailure
+                && !modelFailure.retryable()
+                && !(modelFailure instanceof BudgetExceededException)) {
+            return modelFailure;
+        }
+        if (failure != null) {
+            LOGGER.log(System.Logger.Level.WARNING,
+                    "All streaming model targets failed: type={0}, message={1}",
+                    failure.getClass().getSimpleName(), failure.getMessage());
+        }
+        return new ModelUnavailableException("model service is temporarily unavailable", failure);
+    }
+
+    private QuotaState acquireRouteQuota(ChatRequest request) {
+        if (routeQuota.equals(ModelLimits.UNLIMITED)) return null;
+        String partition = request.routingHints().attributes().get(RoutingHints.AUTH_QUOTA_KEY);
+        if (partition == null || partition.isBlank()) partition = "shared";
+        String key = "__route_quota__:" + partition;
+        QuotaState quota = stateStore.quota(stateNamespace, key, routeQuota);
+        if (!quota.tryAcquire(request.estimatedInputTokens())) {
+            throw new RateLimitException("route quota exceeded: " + stateNamespace);
+        }
+        return quota;
+    }
+
     private void publishUsage(String requestId, ModelTarget target, Usage usage) {
         double cost = usage.inputTokens() < 0 || usage.outputTokens() < 0
                 ? Double.NaN
-                : target.pricing().estimateCost(usage.inputTokens(), usage.outputTokens());
+                : target.pricing().estimateCost(usage);
         notifySafely(() -> listener.onUsageRecorded(new UsageRecorded(requestId, target.id(), usage, cost)));
     }
 
@@ -436,46 +489,61 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
         return ids.stream().filter(eligibleIds::contains).map(targets::get).toList();
     }
 
-    private List<RouteCandidate> eligible(ChatRequest request) {
-        Map<String, String> excluded = exclusions(request);
+    private List<RouteCandidate> eligible(ChatRequest request, boolean streaming) {
+        Map<String, String> excluded = exclusions(request, streaming);
         return snapshots().stream().filter(snapshot -> !excluded.containsKey(snapshot.id())).toList();
     }
 
-    private Map<String, String> exclusions(ChatRequest request) {
+    private Map<String, String> exclusions(ChatRequest request, boolean streaming) {
         RoutingHints hints = request.routingHints();
         Map<String, String> excluded = new LinkedHashMap<>();
         for (ModelTarget target : targets.values()) {
             HealthState candidateHealth = health.get(target.id());
             String reason = null;
             if (!candidateHealth.available(System.currentTimeMillis())) reason = "cooldown";
-            else if (!target.capabilities().contains(com.llmrix.model.router.core.model.Capability.CHAT))
+            else if (!target.satisfies(com.llmrix.model.router.core.model.ModelRequirement.CHAT))
                 reason = "missing-chat-capability";
+            else if (streaming && !target.supports(ModelFeature.STREAMING))
+                reason = "missing-streaming-feature";
+            else if (!request.tools().isEmpty() && !target.supports(ModelFeature.TOOLS))
+                reason = "missing-tools-feature";
+            else if (request.responseFormat() != null && !target.supports(ModelFeature.STRUCTURED_OUTPUT))
+                reason = "missing-structured-output-feature";
+            else if (request.promptCache() != null
+                    && !target.satisfies(com.llmrix.model.router.core.model.ModelRequirement.PROMPT_CACHE))
+                reason = "missing-prompt-cache-capability";
+            else if (request.promptCache() != null && request.promptCache().retention() != null
+                    && target.metadata().containsKey("prompt-cache-retention")
+                    && !request.promptCache().retention().equals(target.metadata().get("prompt-cache-retention")))
+                reason = "prompt-cache-retention-mismatch";
             else if (!hints.allowedModels().isEmpty() && !hints.allowedModels().contains(target.id()))
                 reason = "not-allowed";
             else if (hints.deniedModels().contains(target.id())) reason = "denied";
             else if (containsVideo(request)
-                    && !target.capabilities().contains(com.llmrix.model.router.core.model.Capability.VIDEO_INPUT))
+                    && !target.supports(InputModality.VIDEO))
                 reason = "missing-video-input";
             else if (containsFile(request)
-                    && !target.capabilities().contains(com.llmrix.model.router.core.model.Capability.FILE_INPUT))
+                    && !target.supports(InputModality.FILE))
                 reason = "missing-file-input";
             else if (containsAudio(request)
-                    && !target.capabilities().contains(com.llmrix.model.router.core.model.Capability.AUDIO_INPUT))
+                    && !target.supports(InputModality.AUDIO))
                 reason = "missing-audio-input";
-            else if (!target.capabilities().containsAll(hints.requiredCapabilities())) reason = "missing-capability";
+            else if (!hints.requirements().stream().allMatch(target::satisfies)) reason = "missing-requirement";
             else if (target.maxInputTokens() != null && request.estimatedInputTokens() > target.maxInputTokens())
                 reason = "context-window";
             else if (target.limits().maxConcurrency() != null && candidateHealth.inFlight() >= target.limits().maxConcurrency())
                 reason = "max-concurrency";
-            else if (quotas.get(target.id()).rejectionReason(request.estimatedInputTokens()) != null) {
-                reason = quotas.get(target.id()).rejectionReason(request.estimatedInputTokens());
-            } else if (hints.maxLatency() != null
+            else {
+                String quotaRejection = quotas.get(target.id()).rejectionReason(request.estimatedInputTokens());
+                if (quotaRejection != null) reason = quotaRejection;
+            }
+            if (reason == null && hints.maxLatency() != null
                     && candidateHealth.latencyEwmaMillis() > hints.maxLatency().toNanos() / 1_000_000d)
                 reason = "max-latency";
-            else if (hints.maxCostUsd() != null) {
+            if (reason == null && hints.maxCostUsd() != null) {
                 double estimate = target.pricing().estimateCost(
                         request.estimatedInputTokens(), request.estimatedOutputTokens());
-                if (Double.isFinite(estimate) && estimate > hints.maxCostUsd()) reason = "max-cost";
+                if (!Double.isFinite(estimate) || estimate > hints.maxCostUsd()) reason = "max-cost";
             }
             if (reason != null) excluded.put(target.id(), reason);
         }
@@ -533,6 +601,7 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
         private Duration streamIdleTimeout = ExecutionPolicy.DEFAULT.streamIdleTimeout();
         private RouterListener listener = RouterListener.NOOP;
         private RouterStateStore stateStore = new InMemoryRouterStateStore();
+        private ModelLimits routeQuota = ModelLimits.UNLIMITED;
         private String stateNamespace = "default";
         private Predicate<RuntimeException> retryPredicate = Builder::recoverableModelFailure;
         private ExecutorService executor;
@@ -617,6 +686,18 @@ public final class RoutedChatModel implements ChatModel, AutoCloseable {
         public Builder stateStore(RouterStateStore value) {
             stateStore = Objects.requireNonNull(value);
             return this;
+        }
+
+        public Builder quota(ModelLimits value) {
+            Objects.requireNonNull(value, "quota");
+            if (value.maxConcurrency() != null)
+                throw new IllegalArgumentException("route quota does not support maxConcurrency");
+            routeQuota = value;
+            return this;
+        }
+
+        public Builder quota(Long requestsPerMinute, Long tokensPerMinute) {
+            return quota(new ModelLimits(requestsPerMinute, tokensPerMinute, null));
         }
 
         public Builder stateNamespace(String value) {

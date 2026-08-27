@@ -22,4 +22,14 @@ class ModelExceptionTest {
         assertThrows(IllegalArgumentException.class, () -> exception.statusCode(99));
         assertThrows(IllegalArgumentException.class, () -> exception.statusCode(600));
     }
+
+    @Test
+    void doesNotExposeTransientBadRequestAsAggregatedClientError() {
+        ModelUnavailableException transientFailure = new ModelUnavailableException("capacity", true);
+        transientFailure.statusCode(400);
+
+        ModelUnavailableException aggregate = new ModelUnavailableException("unavailable", transientFailure);
+
+        assertEquals(-1, aggregate.statusCode());
+    }
 }

@@ -5,6 +5,8 @@ import com.llmrix.model.router.core.api.audio.AudioResponse;
 import com.llmrix.model.router.core.api.audio.AudioTextRequest;
 import com.llmrix.model.router.core.api.embedding.EmbeddingResponse;
 import com.llmrix.model.router.core.api.embedding.EmbeddingVector;
+import com.llmrix.model.router.core.api.rerank.RerankResponse;
+import com.llmrix.model.router.core.api.rerank.RerankResult;
 import com.llmrix.model.router.core.api.image.ImageData;
 import com.llmrix.model.router.core.api.image.ImageEditRequest;
 import com.llmrix.model.router.core.api.image.ImageModel;
@@ -21,7 +23,7 @@ import com.llmrix.model.router.core.api.audio.SpeechRequest;
 import com.llmrix.model.router.core.api.Usage;
 import com.llmrix.model.router.core.engine.RoutedModelOperations;
 import com.llmrix.model.router.core.engine.RoutedModelOperationsRegistry;
-import com.llmrix.model.router.core.model.Capability;
+import com.llmrix.model.router.core.model.ModelOperation;
 import com.llmrix.model.router.core.model.ModelTarget;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +51,8 @@ class OpenAiMultimodalControllerTest {
         ModelClient client = ModelClient.builder()
                 .embeddings(request -> new EmbeddingResponse(
                         List.of(EmbeddingVector.floats(0, List.of(0.25, 0.75))), "upstream", new Usage(2, 0)))
+                .rerank(request -> new RerankResponse(
+                        List.of(new RerankResult(1, 0.91, "second")), "upstream", new Usage(3, 0)))
                 .audio(new AudioModel() {
                     @Override public AudioResponse transcribe(AudioTextRequest request) {
                         return jsonAudio("{\"text\":\"transcribed\"}");
@@ -86,14 +90,15 @@ class OpenAiMultimodalControllerTest {
                     }
                 }).build();
         ModelTarget target = ModelTarget.builder("fake/multimodal", client)
-                .capabilities(Capability.EMBEDDINGS, Capability.AUDIO_TRANSCRIPTION,
-                        Capability.AUDIO_TRANSLATION, Capability.TEXT_TO_SPEECH,
-                        Capability.IMAGE_GENERATION, Capability.IMAGE_EDIT, Capability.VIDEO_GENERATION)
+                .operations(ModelOperation.EMBEDDINGS, ModelOperation.RERANK, ModelOperation.AUDIO_TRANSCRIPTION,
+                        ModelOperation.AUDIO_TRANSLATION, ModelOperation.TEXT_TO_SPEECH,
+                        ModelOperation.IMAGE_GENERATION, ModelOperation.IMAGE_EDIT, ModelOperation.VIDEO_GENERATION)
                 .build();
         RoutedModelOperations operations = RoutedModelOperations.builder().target(target).build();
         routes = new RoutedModelOperationsRegistry(Map.of("general", operations));
         mvc = MockMvcBuilders.standaloneSetup(
                         new OpenAiEmbeddingController(routes),
+                        new OpenAiRerankController(routes),
                         new OpenAiAudioController(routes),
                         new OpenAiImageController(routes),
                         new OpenAiVideoController(routes))
@@ -111,6 +116,18 @@ class OpenAiMultimodalControllerTest {
                 .andExpect(jsonPath("$.object").value("list"))
                 .andExpect(jsonPath("$.data[0].embedding[1]").value(0.75))
                 .andExpect(jsonPath("$.usage.prompt_tokens").value(2));
+    }
+
+    @Test
+    void servesRerankProtocol() throws Exception {
+        mvc.perform(post("/v1/rerank").contentType("application/json").content("""
+                        {"model":"general","query":"refund","documents":["support","second"],
+                         "top_n":1,"return_documents":true}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results[0].index").value(1))
+                .andExpect(jsonPath("$.results[0].relevance_score").value(0.91))
+                .andExpect(jsonPath("$.results[0].document.text").value("second"));
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.llmrix.model.router.core.exception.ModelUnavailableException;
 import com.llmrix.model.router.core.exception.PermissionDeniedException;
 import com.llmrix.model.router.core.exception.ContextWindowException;
 import com.llmrix.model.router.core.exception.ContentPolicyException;
+import com.llmrix.model.router.core.exception.UnknownRouteException;
 import com.llmrix.model.router.core.routing.NoCandidateException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import java.util.LinkedHashMap;
 
 @RestControllerAdvice
 public final class OpenAiExceptionHandler {
+
     @ExceptionHandler({IllegalArgumentException.class, InvalidRequestException.class})
     ResponseEntity<Map<String, Object>> badRequest(RuntimeException error) {
         return response(HttpStatus.BAD_REQUEST, error, "invalid_request_error");
@@ -62,9 +64,11 @@ public final class OpenAiExceptionHandler {
                 "server_error", null, null);
     }
 
-    @ExceptionHandler(UnknownModelException.class)
-    ResponseEntity<Map<String, Object>> unknownModel(UnknownModelException error) {
-        return response(HttpStatus.NOT_FOUND, error, "invalid_request_error", "model", "model_not_found");
+    @ExceptionHandler(UnknownRouteException.class)
+    ResponseEntity<Map<String, Object>> unknownModel(UnknownRouteException error) {
+        return response(HttpStatus.NOT_FOUND,
+                "The model '" + error.routeId() + "' does not exist",
+                "invalid_request_error", "model", "model_not_found");
     }
 
     @ExceptionHandler(RuntimeException.class)

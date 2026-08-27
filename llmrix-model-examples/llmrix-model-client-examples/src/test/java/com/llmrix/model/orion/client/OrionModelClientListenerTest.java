@@ -2,6 +2,7 @@ package com.llmrix.model.orion.client;
 
 import com.llmrix.model.orion.observation.OrionModelClientListener;
 
+import com.llmrix.model.router.core.api.chat.ChatModel;
 import com.llmrix.model.router.core.api.chat.ChatRequest;
 import com.llmrix.model.router.core.api.chat.ChatResponse;
 import org.junit.jupiter.api.Test;
@@ -39,5 +40,23 @@ class OrionModelClientListenerTest {
                 request -> ChatResponse.of("ok"), listener, null, "responses", "general");
 
         assertThat(model.chat(ChatRequest.user("hello")).text()).isEqualTo("ok");
+    }
+
+    @Test
+    void preservesDelegateCapabilities() {
+        ChatModel delegate = new ChatModel() {
+            @Override public ChatResponse chat(ChatRequest request) { return ChatResponse.of("ok"); }
+            @Override public boolean supportsStreaming() { return true; }
+            @Override public boolean supportsTools() { return true; }
+            @Override public boolean supportsStructuredOutput() { return true; }
+            @Override public boolean supportsPromptCache() { return true; }
+        };
+        ObservingChatModel model = new ObservingChatModel(
+                delegate, OrionModelClientListener.NOOP, null, "chat.completions", "general");
+
+        assertThat(model.supportsStreaming()).isTrue();
+        assertThat(model.supportsTools()).isTrue();
+        assertThat(model.supportsStructuredOutput()).isTrue();
+        assertThat(model.supportsPromptCache()).isTrue();
     }
 }

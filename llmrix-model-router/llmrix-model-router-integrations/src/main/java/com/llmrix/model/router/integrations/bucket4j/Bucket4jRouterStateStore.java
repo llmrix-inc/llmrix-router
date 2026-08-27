@@ -4,14 +4,17 @@ import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Refill;
 import com.llmrix.model.router.core.model.ModelLimits;
+import com.llmrix.model.router.core.exception.RateLimitException;
 import com.llmrix.model.router.core.state.HealthState;
 import com.llmrix.model.router.core.state.InMemoryRouterStateStore;
+import com.llmrix.model.router.core.state.LocalQuotaOptions;
 import com.llmrix.model.router.core.state.QuotaState;
 import com.llmrix.model.router.core.state.RouterStateStore;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Scheduler;
 
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Uses Bucket4j for local token-bucket quotas while delegating candidate health state.
@@ -19,15 +22,30 @@ import java.util.concurrent.ConcurrentMap;
 public final class Bucket4jRouterStateStore implements RouterStateStore {
     private final RouterStateStore healthDelegate;
     private final Bucket4jQuotaOptions options;
-    private final ConcurrentMap<Key, QuotaState> quotas = new ConcurrentHashMap<>();
+    private final Cache<Key, QuotaState> quotas;
+    private final LocalQuotaOptions quotaOptions;
+    private final Object quotaCreationLock = new Object();
 
     public Bucket4jRouterStateStore() {
-        this(new InMemoryRouterStateStore(), Bucket4jQuotaOptions.DEFAULT);
+        this(new InMemoryRouterStateStore(), Bucket4jQuotaOptions.DEFAULT, LocalQuotaOptions.DEFAULT);
     }
 
     public Bucket4jRouterStateStore(RouterStateStore healthDelegate, Bucket4jQuotaOptions options) {
+        this(healthDelegate, options, LocalQuotaOptions.DEFAULT);
+    }
+
+    public Bucket4jRouterStateStore(RouterStateStore healthDelegate, Bucket4jQuotaOptions options,
+                                    LocalQuotaOptions quotaOptions) {
         this.healthDelegate = Objects.requireNonNull(healthDelegate, "healthDelegate");
         this.options = Objects.requireNonNull(options, "options");
+        this.quotaOptions = Objects.requireNonNull(quotaOptions, "quotaOptions");
+        if (quotaOptions.idleTimeout().compareTo(options.refillPeriod()) < 0) {
+            throw new IllegalArgumentException("quota idleTimeout must be >= refillPeriod");
+        }
+        this.quotas = Caffeine.newBuilder()
+                .expireAfterAccess(quotaOptions.idleTimeout())
+                .scheduler(Scheduler.systemScheduler())
+                .build();
     }
 
     @Override
@@ -38,7 +56,19 @@ public final class Bucket4jRouterStateStore implements RouterStateStore {
     @Override
     public QuotaState quota(String namespace, String candidateId, ModelLimits limits) {
         Key key = new Key(namespace, candidateId, limits);
-        return quotas.computeIfAbsent(key, ignored -> new BucketQuota(limits, options));
+        QuotaState existing = quotas.getIfPresent(key);
+        if (existing != null) return existing;
+        synchronized (quotaCreationLock) {
+            existing = quotas.getIfPresent(key);
+            if (existing != null) return existing;
+            quotas.cleanUp();
+            if (quotas.estimatedSize() >= quotaOptions.maxPartitions()) {
+                throw new RateLimitException("local quota partition capacity exhausted");
+            }
+            QuotaState created = new BucketQuota(limits, options);
+            quotas.put(key, created);
+            return created;
+        }
     }
 
     private static final class Key {

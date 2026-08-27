@@ -8,6 +8,7 @@ import com.llmrix.model.orion.spring.boot.properties.OrionModelClientProperties;
 import com.llmrix.model.router.core.api.chat.ChatModel;
 import com.llmrix.model.router.core.api.audio.AudioModel;
 import com.llmrix.model.router.core.api.embedding.EmbeddingModel;
+import com.llmrix.model.router.core.api.rerank.RerankModel;
 import com.llmrix.model.router.core.api.image.ImageModel;
 import com.llmrix.model.router.core.api.video.VideoModel;
 import org.springframework.beans.factory.ObjectProvider;
@@ -40,6 +41,7 @@ public class OrionModelClientAutoConfiguration {
                 .apiKey(properties.getApiKey())
                 .defaultModel(chatDefault(properties))
                 .defaultEmbeddingModel(properties.getDefaults().getEmbedding())
+                .defaultRerankModel(properties.getDefaults().getRerank())
                 .defaultAudioModel(properties.getDefaults().getAudio())
                 .defaultImageModel(properties.getDefaults().getImage())
                 .defaultVideoModel(properties.getDefaults().getVideo())
@@ -82,6 +84,13 @@ public class OrionModelClientAutoConfiguration {
     @ConditionalOnProperty(prefix = "llmrix.model.orion.defaults", name = "embedding")
     EmbeddingModel orionModelEmbeddingModel(OrionModelClient client) {
         return client.defaultEmbeddingModel();
+    }
+
+    @Bean(name = "orionModelRerankModel")
+    @ConditionalOnMissingBean(name = "orionModelRerankModel")
+    @ConditionalOnProperty(prefix = "llmrix.model.orion.defaults", name = "rerank")
+    RerankModel orionModelRerankModel(OrionModelClient client) {
+        return client.defaultRerankModel();
     }
 
     @Bean(name = "orionModelAudioModel")

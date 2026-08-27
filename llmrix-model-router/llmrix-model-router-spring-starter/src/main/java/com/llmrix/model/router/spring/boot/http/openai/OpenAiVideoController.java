@@ -48,10 +48,10 @@ public final class OpenAiVideoController {
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> create(@RequestBody JsonNode body, HttpServletRequest servletRequest) {
-        String route = text(body, "model", true);
+        String route = OpenAiRequestParser.text(body, "model", true);
         VideoRequest request = new VideoRequest(
-                text(body, "prompt", true), text(body, "seconds", false),
-                text(body, "size", false), text(body, "input_reference", false),
+                OpenAiRequestParser.text(body, "prompt", true), OpenAiRequestParser.text(body, "seconds", false),
+                OpenAiRequestParser.text(body, "size", false), OpenAiRequestParser.text(body, "input_reference", false),
                 routing.hints(servletRequest));
         return protocol(routing.route(route).create(request));
     }
@@ -100,16 +100,7 @@ public final class OpenAiVideoController {
                                      @RequestParam(required = false) String model,
                                      HttpServletRequest servletRequest) {
         return protocol(routing.routeOrDefault(model).remix(new VideoRemixRequest(
-                videoId, text(body, "prompt", true), routing.hints(servletRequest))));
-    }
-
-    private static String text(JsonNode body, String name, boolean required) {
-        JsonNode value = body == null ? null : body.get(name);
-        if (value == null || value.isNull() || value.asText().isBlank()) {
-            if (required) throw new IllegalArgumentException(name + " is required");
-            return null;
-        }
-        return value.asText();
+                videoId, OpenAiRequestParser.text(body, "prompt", true), routing.hints(servletRequest))));
     }
 
     private static Map<String, Object> protocol(VideoResponse response) {
@@ -123,6 +114,11 @@ public final class OpenAiVideoController {
         put(value, "expires_at", response.expiresAt());
         put(value, "progress", response.progress());
         put(value, "error", response.error());
+        if (response.usage().inputTokens() >= 0 && response.usage().outputTokens() >= 0) {
+            value.put("usage", Map.of("input_tokens", response.usage().inputTokens(),
+                    "output_tokens", response.usage().outputTokens(),
+                    "total_tokens", response.usage().totalTokens()));
+        }
         return value;
     }
 

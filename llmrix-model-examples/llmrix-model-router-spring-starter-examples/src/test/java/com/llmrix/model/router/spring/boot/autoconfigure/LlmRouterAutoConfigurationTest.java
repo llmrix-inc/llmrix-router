@@ -40,7 +40,7 @@ class LlmRouterAutoConfigurationTest {
                     "llmrix.model.router.routes.general.models[0].model=test-model",
                     "llmrix.model.router.integrations.fake.provider=openai",
                     "llmrix.model.router.integrations.fake.models[0].name=test-model",
-                    "llmrix.model.router.integrations.fake.models[0].capabilities=chat",
+                    "llmrix.model.router.integrations.fake.models[0].operations=chat",
                     "llmrix.model.router.integrations.fake.base-url=https://example.test/v1");
 
     @Test
@@ -61,7 +61,7 @@ class LlmRouterAutoConfigurationTest {
                         "llmrix.model.router.routes.general.models[1].integration=fake",
                         "llmrix.model.router.routes.general.models[1].model=second-model",
                         "llmrix.model.router.integrations.fake.models[1].name=second-model",
-                        "llmrix.model.router.integrations.fake.models[1].capabilities=chat,code")
+                        "llmrix.model.router.integrations.fake.models[1].operations=chat")
                 .run(context -> assertThat(context.getBean(RoutedChatModel.class).targets())
                         .extracting(candidate -> candidate.id())
                         .containsExactly("fake/test-model", "fake/second-model"));

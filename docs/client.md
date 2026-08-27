@@ -3,13 +3,19 @@
 Orion is the framework-neutral Java client for calling a remote LLMRix Router. It uses Router route
 names rather than upstream provider model IDs.
 
+The client implementation depends on `llmrix-model-open`, which contains the shared model contracts
+and reusable OpenAI-compatible HTTP adapters. It does not depend on the Router runtime or the full
+`llmrix-model-router-integrations` module.
+The existing Java package names remain unchanged in this release so application source code does not
+need to change.
+
 ## Maven Dependency
 
 ```xml
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-orion</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.2</version>
 </dependency>
 ```
 
@@ -27,6 +33,7 @@ import com.llmrix.model.orion.model.RouterModel;
 import com.llmrix.model.router.core.api.audio.*;
 import com.llmrix.model.router.core.api.chat.*;
 import com.llmrix.model.router.core.api.embedding.*;
+import com.llmrix.model.router.core.api.rerank.*;
 import com.llmrix.model.router.core.api.image.*;
 import com.llmrix.model.router.core.api.video.*;
 import java.nio.file.Files;
@@ -39,7 +46,8 @@ OrionModelClient client = OrionModelClient.builder()
     .baseUrl("https://router.example.com/v1")
     .apiKey(System.getenv("LLMRIX_API_KEY"))
     .defaultModel("general")
-    .defaultEmbeddingModel("embedding")
+    .defaultEmbeddingModel("embeddings")
+    .defaultRerankModel("rerank")
     .defaultAudioModel("audio")
     .defaultImageModel("image")
     .defaultVideoModel("video")
@@ -47,6 +55,8 @@ OrionModelClient client = OrionModelClient.builder()
 
 ChatResponse response = client.chat(ChatRequest.user("Summarize this incident"));
 EmbeddingResponse vectors = client.embed(EmbeddingRequest.text("Index this incident"));
+RerankResponse ranked = client.rerank(new RerankRequest(
+        "refund policy", List.of("Support contact", "Refunds within 30 days")));
 ChatResponse responsesApi = client.responsesModel("general")
     .chat(ChatRequest.user("Use the Responses-compatible route."));
 List<RouterModel> routes = client.models();
@@ -60,13 +70,16 @@ Use a route-scoped typed model when the route is selected per operation:
 
 ```java
 ChatModel chat = client.chatModel("general");
-EmbeddingModel embeddings = client.embeddingModel("embedding");
+EmbeddingModel embeddings = client.embeddingModel("embeddings");
+RerankModel reranker = client.rerankModel("rerank");
 AudioModel audio = client.audioModel("audio");
 ImageModel images = client.imageModel("image");
 VideoModel videos = client.videoModel("video");
 
 ChatResponse answer = chat.chat(ChatRequest.user("Explain the routing policy."));
 EmbeddingResponse vector = embeddings.embed(EmbeddingRequest.text("Text to index"));
+RerankResponse ranked = reranker.rerank(new RerankRequest(
+        "refund policy", List.of("Support contact", "Refunds within 30 days")));
 
 byte[] audioBytes = Files.readAllBytes(Path.of("meeting.mp3"));
 AudioResponse transcript = audio.transcribe(new AudioTextRequest(
@@ -112,7 +125,8 @@ ChatRequest audioAndVideo = ChatRequest.builder()
 ChatResponse multimodalResponse = client.chatModel("multimodal").chat(audioAndVideo);
 ```
 
-The selected routes must declare `vision`, `video-input`, `audio-input`, or `file-input`. Video
+The selected routes must declare the corresponding `input-modalities` values: `vision`, `video`,
+`audio`, or `file`. Video
 understanding uses Chat Completions. The Responses adapter currently supports text, image, file, and
 tool input, but not video or audio input.
 
@@ -163,7 +177,7 @@ Add the optional Spring integration instead of constructing the client manually:
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-orion-spring-starter</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.2</version>
 </dependency>
 ```
 
@@ -176,7 +190,8 @@ llmrix:
       api-key: ${LLMRIX_API_KEY}
       defaults:
         chat: general
-        embedding: embedding
+        embedding: embeddings
+        rerank: rerank
         audio: audio
         image: image
         video: video
@@ -188,6 +203,7 @@ The starter creates `OrionModelClient` and named typed beans only for configured
 import com.llmrix.model.router.core.api.audio.AudioModel;
 import com.llmrix.model.router.core.api.chat.ChatModel;
 import com.llmrix.model.router.core.api.embedding.EmbeddingModel;
+import com.llmrix.model.router.core.api.rerank.RerankModel;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -195,19 +211,22 @@ import org.springframework.stereotype.Service;
 public class ModelService {
     private final ChatModel chat;
     private final EmbeddingModel embeddings;
+    private final RerankModel reranker;
     private final AudioModel audio;
 
     public ModelService(
             @Qualifier("orionModelChatModel") ChatModel chat,
             @Qualifier("orionModelEmbeddingModel") EmbeddingModel embeddings,
+            @Qualifier("orionModelRerankModel") RerankModel reranker,
             @Qualifier("orionModelAudioModel") AudioModel audio) {
         this.chat = chat;
         this.embeddings = embeddings;
+        this.reranker = reranker;
         this.audio = audio;
     }
 }
 ```
 
-Available bean names are `orionModelChatModel`, `orionModelEmbeddingModel`, `orionModelAudioModel`,
+Available bean names are `orionModelChatModel`, `orionModelEmbeddingModel`, `orionModelRerankModel`, `orionModelAudioModel`,
 `orionModelImageModel`, and `orionModelVideoModel`. The legacy
 `llmrix.model.orion.default-model` property remains an alias for the Chat default.

@@ -11,7 +11,11 @@ import java.util.Set;
 public final class ModelTarget {
     private final String id;
     private final ModelClient client;
-    private final Set<Capability> capabilities;
+    private final Set<ModelOperation> operations;
+    private final Set<ModelFeature> features;
+    private final Set<InputModality> inputModalities;
+    private final Set<ModelTrait> traits;
+    private final ProviderCapabilities providerCapabilities;
     private final Integer maxInputTokens;
     private final ModelPricing pricing;
     private final ModelLimits limits;
@@ -22,12 +26,16 @@ public final class ModelTarget {
     private ModelTarget(Builder builder) {
         this.id = requireText(builder.id, "id");
         this.client = Objects.requireNonNull(builder.client, "client");
-        this.capabilities = Set.copyOf(builder.capabilities);
-        for (Capability capability : capabilities) {
-            if (!client.supports(capability)) {
-                throw new IllegalArgumentException("model client does not implement capability: " + capability);
-            }
-        }
+        this.providerCapabilities = ProviderCapabilities.from(client);
+        this.operations = Set.copyOf(builder.operations);
+        if (operations.isEmpty()) throw new IllegalArgumentException("at least one model operation is required");
+        this.features = builder.features.isEmpty() ? providerCapabilities.features() : Set.copyOf(builder.features);
+        this.inputModalities = Set.copyOf(builder.inputModalities);
+        this.traits = Set.copyOf(builder.traits);
+        for (ModelOperation operation : operations)
+            if (!providerCapabilities.supports(operation)) throw new IllegalArgumentException("model client does not implement operation: " + operation);
+        for (ModelFeature feature : features)
+            if (!providerCapabilities.supports(feature)) throw new IllegalArgumentException("model client does not implement feature: " + feature);
         this.maxInputTokens = builder.maxInputTokens;
         this.pricing = builder.pricing;
         this.limits = builder.limits;
@@ -37,7 +45,7 @@ public final class ModelTarget {
     }
 
     public static Builder builder(String id, ChatModel model) {
-        return new Builder(id, ModelClient.chat(model));
+        return new Builder(id, ModelClient.chat(model)).operations(ModelOperation.CHAT);
     }
 
     public static Builder builder(String id, ModelClient client) {
@@ -63,9 +71,41 @@ public final class ModelTarget {
         return client.requireChat();
     }
 
-    public Set<Capability> capabilities() {
-        return capabilities;
+    public Set<ModelOperation> operations() { return operations; }
+    public Set<ModelFeature> features() { return features; }
+    public Set<InputModality> inputModalities() { return inputModalities; }
+    public Set<ModelTrait> traits() { return traits; }
+
+    public boolean supports(ModelOperation operation) { return operations.contains(operation) && providerCapabilities.supports(operation); }
+    public boolean supports(ModelFeature feature) { return features.contains(feature) && providerCapabilities.supports(feature); }
+    public boolean supports(InputModality modality) { return inputModalities.contains(modality); }
+    public boolean hasTrait(ModelTrait trait) { return traits.contains(trait); }
+    public boolean satisfies(ModelRequirement requirement) {
+        return switch (requirement) {
+            case CHAT -> supports(ModelOperation.CHAT);
+            case CHAT_STREAMING -> supports(ModelFeature.STREAMING);
+            case TOOLS -> supports(ModelFeature.TOOLS);
+            case STRUCTURED_OUTPUT -> supports(ModelFeature.STRUCTURED_OUTPUT);
+            case PROMPT_CACHE -> supports(ModelFeature.PROMPT_CACHE);
+            case VISION -> supports(InputModality.VISION);
+            case VIDEO_INPUT -> supports(InputModality.VIDEO);
+            case FILE_INPUT -> supports(InputModality.FILE);
+            case AUDIO_INPUT -> supports(InputModality.AUDIO);
+            case CODE -> hasTrait(ModelTrait.CODE);
+            case REASONING -> hasTrait(ModelTrait.REASONING);
+            case LONG_CONTEXT -> hasTrait(ModelTrait.LONG_CONTEXT);
+            case EMBEDDINGS -> supports(ModelOperation.EMBEDDINGS);
+            case RERANK -> supports(ModelOperation.RERANK);
+            case AUDIO_TRANSCRIPTION -> supports(ModelOperation.AUDIO_TRANSCRIPTION);
+            case AUDIO_TRANSLATION -> supports(ModelOperation.AUDIO_TRANSLATION);
+            case TEXT_TO_SPEECH -> supports(ModelOperation.TEXT_TO_SPEECH);
+            case IMAGE_GENERATION -> supports(ModelOperation.IMAGE_GENERATION);
+            case IMAGE_EDIT -> supports(ModelOperation.IMAGE_EDIT);
+            case VIDEO_GENERATION -> supports(ModelOperation.VIDEO_GENERATION);
+        };
     }
+
+    public ProviderCapabilities providerCapabilities() { return providerCapabilities; }
 
     public Integer maxInputTokens() {
         return maxInputTokens;
@@ -94,7 +134,10 @@ public final class ModelTarget {
     public static final class Builder {
         private final String id;
         private final ModelClient client;
-        private final EnumSet<Capability> capabilities = EnumSet.of(Capability.CHAT);
+        private final EnumSet<ModelOperation> operations = EnumSet.noneOf(ModelOperation.class);
+        private final EnumSet<ModelFeature> features = EnumSet.noneOf(ModelFeature.class);
+        private final EnumSet<InputModality> inputModalities = EnumSet.noneOf(InputModality.class);
+        private final EnumSet<ModelTrait> traits = EnumSet.noneOf(ModelTrait.class);
         private Integer maxInputTokens;
         private ModelPricing pricing = ModelPricing.UNKNOWN;
         private ModelLimits limits = ModelLimits.UNLIMITED;
@@ -107,12 +150,17 @@ public final class ModelTarget {
             this.client = client;
         }
 
-        public Builder capabilities(Capability... capabilities) {
-            this.capabilities.clear();
-            for (Capability capability : capabilities) {
-                this.capabilities.add(Objects.requireNonNull(capability));
-            }
-            return this;
+        public Builder operations(ModelOperation... values) {
+            operations.clear(); for (ModelOperation value : values) operations.add(Objects.requireNonNull(value)); return this;
+        }
+        public Builder features(ModelFeature... values) {
+            features.clear(); for (ModelFeature value : values) features.add(Objects.requireNonNull(value)); return this;
+        }
+        public Builder inputModalities(InputModality... values) {
+            inputModalities.clear(); for (InputModality value : values) inputModalities.add(Objects.requireNonNull(value)); return this;
+        }
+        public Builder traits(ModelTrait... values) {
+            traits.clear(); for (ModelTrait value : values) traits.add(Objects.requireNonNull(value)); return this;
         }
 
         public Builder maxInputTokens(Integer value) {

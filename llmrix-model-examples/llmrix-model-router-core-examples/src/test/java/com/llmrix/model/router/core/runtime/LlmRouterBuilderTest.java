@@ -7,7 +7,9 @@ import com.llmrix.model.router.core.api.embedding.EmbeddingRequest;
 import com.llmrix.model.router.core.api.embedding.EmbeddingResponse;
 import com.llmrix.model.router.core.api.embedding.EmbeddingVector;
 import com.llmrix.model.router.core.exception.ModelUnavailableException;
-import com.llmrix.model.router.core.model.Capability;
+import com.llmrix.model.router.core.model.ModelOperation;
+import com.llmrix.model.router.core.model.ModelFeature;
+import com.llmrix.model.router.core.model.ModelTrait;
 import com.llmrix.model.router.core.model.ModelTarget;
 import com.llmrix.model.router.core.runtime.LlmRouter;
 import com.llmrix.model.router.integrations.openai.OpenAiCompatibleChatModel;
@@ -26,17 +28,17 @@ class LlmRouterBuilderTest {
                 .integration("openai", integration -> integration
                         .apiKey("openai-key")
                         .model("gpt-4.1-mini", model -> model
-                                .capabilities(Capability.CHAT, Capability.TOOLS)))
+                                .operations(ModelOperation.CHAT).features(ModelFeature.TOOLS)))
                 .integration("deepseek", integration -> integration
                         .apiKey("deepseek-key")
                         .model("deepseek-chat", model -> model
-                                .capabilities(Capability.CHAT, Capability.CODE)))
+                                .operations(ModelOperation.CHAT).traits(ModelTrait.CODE)))
                 .integration("openrouter", integration -> integration
                         .apiKey("openrouter-key")
                         .siteUrl("https://example.test")
                         .appName("LLMRix Test")
                         .model("openai/gpt-4.1-mini", model -> model
-                                .capabilities(Capability.CHAT, Capability.TOOLS)))
+                                .operations(ModelOperation.CHAT).features(ModelFeature.TOOLS)))
                 .route("general", route -> route
                         .strategy("balanced")
                         .models("openai/gpt-4.1-mini", "deepseek/deepseek-chat",
@@ -83,7 +85,7 @@ class LlmRouterBuilderTest {
                         "embedding-model", new Usage(2, 0)))
                 .build();
         ModelTarget target = ModelTarget.builder("embeddings", client)
-                .capabilities(Capability.EMBEDDINGS)
+                .operations(ModelOperation.EMBEDDINGS)
                 .build();
 
         try (LlmRouter router = LlmRouter.builder()
