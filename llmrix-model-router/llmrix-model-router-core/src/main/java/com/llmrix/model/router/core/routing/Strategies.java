@@ -1,12 +1,15 @@
 package com.llmrix.model.router.core.routing;
 
 import com.llmrix.model.router.core.model.ModelTarget;
+import com.llmrix.model.router.core.api.chat.ChatRequest;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.time.Duration;
 
 public final class Strategies {
     private Strategies() {
@@ -59,7 +62,7 @@ public final class Strategies {
 
     public static RoutingStrategy costAware() {
         return (request, candidates) -> candidates.stream()
-                .min(Comparator.comparingDouble(snapshot -> estimatedInputCost(snapshot.target(), request.estimatedInputTokens())))
+                .min(Comparator.comparingDouble(snapshot -> estimatedCost(snapshot.target(), request)))
                 .orElseThrow(() -> new NoCandidateException("no candidate is available"))
                 .target();
     }
@@ -69,6 +72,53 @@ public final class Strategies {
                 .min(Comparator.comparingDouble(snapshot -> balancedScore(snapshot, request.estimatedInputTokens())))
                 .orElseThrow(() -> new NoCandidateException("no candidate is available"))
                 .target();
+    }
+
+    /** Keeps requests with the same prompt-cache key on the same eligible target. */
+    public static RoutingStrategy cacheAware() {
+        return cacheAware(balanced(), Duration.ofMinutes(10), 10_000);
+    }
+
+    public static RoutingStrategy cacheAware(RoutingStrategy fallback) {
+        return cacheAware(fallback, Duration.ofMinutes(10), 10_000);
+    }
+
+    /** Creates cache affinity with an explicit retention period and bounded entry count. */
+    public static RoutingStrategy cacheAware(RoutingStrategy fallback, Duration retention, int maxEntries) {
+        if (fallback == null) throw new IllegalArgumentException("fallback strategy must not be null");
+        if (retention == null || retention.isZero() || retention.isNegative()) {
+            throw new IllegalArgumentException("cache affinity retention must be > 0");
+        }
+        if (maxEntries < 1) throw new IllegalArgumentException("cache affinity maxEntries must be > 0");
+        long ttlNanos = retention.toNanos();
+        Map<String, AffinityEntry> affinity = new ConcurrentHashMap<>();
+        return (request, candidates) -> {
+            String key = request instanceof ChatRequest chat && chat.promptCache() != null
+                    ? chat.promptCache().key() : request.routingHints().attributes().get("prompt_cache_key");
+            if (key == null || key.isBlank()) return fallback.select(request, candidates);
+            long now = System.nanoTime();
+            AffinityEntry entry = affinity.get(key);
+            if (entry != null && entry.expiresAtNanos() > now) {
+                String preferred = entry.targetId();
+                for (RouteCandidate candidate : candidates) {
+                    if (preferred.equals(candidate.id())) return candidate.target();
+                }
+            } else if (entry != null) {
+                affinity.remove(key, entry);
+            }
+            ModelTarget selected = fallback.select(request, candidates);
+            affinity.put(key, new AffinityEntry(selected.id(), now + ttlNanos));
+            if (affinity.size() > maxEntries) {
+                affinity.entrySet().removeIf(value -> value.getValue().expiresAtNanos() <= now);
+                if (affinity.size() > maxEntries) {
+                    affinity.keySet().stream().findAny().ifPresent(affinity::remove);
+                }
+            }
+            return selected;
+        };
+    }
+
+    private record AffinityEntry(String targetId, long expiresAtNanos) {
     }
 
     public static RoutingStrategy semantic(SemanticClassifier classifier) {
@@ -106,7 +156,12 @@ public final class Strategies {
         return rate == null ? Double.MAX_VALUE : inputTokens * rate / 1_000_000d;
     }
 
-    public static List<String> names() {
-        return List.of("priority", "round-robin", "weighted-random", "least-busy", "latency-aware", "cost-aware", "balanced");
+    private static double estimatedCost(ModelTarget candidate, com.llmrix.model.router.core.api.ModelRequest request) {
+        return estimatedCost(candidate, request.estimatedInputTokens(), request.estimatedOutputTokens());
     }
+
+    private static double estimatedCost(ModelTarget candidate, int inputTokens, int outputTokens) {
+        return candidate.pricing().estimateCost(inputTokens, outputTokens);
+    }
+
 }

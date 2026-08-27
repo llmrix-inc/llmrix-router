@@ -8,6 +8,9 @@ import com.llmrix.model.router.core.api.audio.SpeechRequest;
 import com.llmrix.model.router.core.api.embedding.EmbeddingModel;
 import com.llmrix.model.router.core.api.embedding.EmbeddingRequest;
 import com.llmrix.model.router.core.api.embedding.EmbeddingResponse;
+import com.llmrix.model.router.core.api.rerank.RerankModel;
+import com.llmrix.model.router.core.api.rerank.RerankRequest;
+import com.llmrix.model.router.core.api.rerank.RerankResponse;
 import com.llmrix.model.router.core.api.image.ImageEditRequest;
 import com.llmrix.model.router.core.api.image.ImageModel;
 import com.llmrix.model.router.core.api.image.ImageRequest;
@@ -52,6 +55,12 @@ final class ObservingModelOperations {
                 return call(listener, requestId, "audio.speech", model, () -> delegate.speech(request));
             }
         };
+    }
+
+    static RerankModel rerank(RerankModel delegate, OrionModelClientListener listener,
+                              String requestId, String model) {
+        if (listener == OrionModelClientListener.NOOP) return delegate;
+        return request -> call(listener, requestId, "rerank", model, () -> delegate.rerank(request));
     }
 
     static ImageModel image(ImageModel delegate, OrionModelClientListener listener,

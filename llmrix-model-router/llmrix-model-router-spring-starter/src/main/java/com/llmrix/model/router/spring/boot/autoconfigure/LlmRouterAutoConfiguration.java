@@ -16,6 +16,7 @@ import com.llmrix.model.router.core.engine.RoutedModelOperations;
 import com.llmrix.model.router.core.engine.RoutedModelOperationsRegistry;
 import com.llmrix.model.router.core.routing.RoutingStrategy;
 import com.llmrix.model.router.core.state.InMemoryRouterStateStore;
+import com.llmrix.model.router.core.state.LocalQuotaOptions;
 import com.llmrix.model.router.core.state.RouterStateStore;
 import com.llmrix.model.router.core.engine.ExecutionPolicy;
 import com.llmrix.model.router.core.event.RouterListener;
@@ -59,10 +60,13 @@ public class LlmRouterAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "llmrix.model.router.state", name = "mode", havingValue = "local", matchIfMissing = true)
-    RouterStateStore routerStateStore() {
+    RouterStateStore routerStateStore(LlmRouterProperties properties) {
         LOGGER.log(System.Logger.Level.INFO,
                 "LLMRix Router state mode: local (limits and health are JVM-local)");
-        return new InMemoryRouterStateStore();
+        LlmRouterProperties.Local local = properties.getState().getLocal();
+        if (local == null) local = new LlmRouterProperties.Local();
+        return new InMemoryRouterStateStore(new LocalQuotaOptions(
+                local.getMaxQuotaPartitions(), local.getQuotaIdleTimeout()));
     }
 
     @Configuration(proxyBeanMethods = false)
@@ -167,7 +171,12 @@ public class LlmRouterAutoConfiguration {
             List<String> modelIds = route.getModels().stream()
                     .map(reference -> routeModelId(id, reference))
                     .toList();
-            configured.strategy(route.getStrategy()).models(modelIds.toArray(String[]::new));
+            configured.strategy(route.getStrategy());
+            LlmRouterProperties.Quota quota = route.getQuota();
+            if (quota != null) {
+                configured.quota(quota.getRequestsPerMinute(), quota.getTokensPerMinute());
+            }
+            configured.models(modelIds.toArray(String[]::new));
         }));
         return builder.build();
     }
@@ -220,6 +229,7 @@ public class LlmRouterAutoConfiguration {
             if (integration.getApiMode() == LlmRouterProperties.OpenAiApiMode.RESPONSES) configured.responsesApi();
             if (hasText(integration.getSiteUrl())) configured.siteUrl(integration.getSiteUrl());
             if (hasText(integration.getAppName())) configured.appName(integration.getAppName());
+            if (integration.isForwardRoutingHints()) configured.option("forward-routing-hints", true);
             if (integration.getModels() == null || integration.getModels().isEmpty()) {
                 throw new IllegalArgumentException("integration " + id + " models must not be empty");
             }
@@ -230,27 +240,29 @@ public class LlmRouterAutoConfiguration {
                 if (!modelNames.add(modelName)) {
                     throw new IllegalArgumentException("duplicate model in integration " + id + ": " + modelName);
                 }
-                configured.model(modelName, target -> target
-                        .capabilities(model.getCapabilities().stream()
-                                .map(LlmRouterAutoConfiguration::capability)
-                                .toArray(com.llmrix.model.router.core.model.Capability[]::new))
+                configured.model(modelName, target -> {
+                    target
                         .maxInputTokens(model.getMaxInputTokens())
-                        .pricing(model.getInputCostPerMillion(), model.getOutputCostPerMillion())
+                        .pricing(model.getInputCostPerMillion(), model.getOutputCostPerMillion(),
+                                model.getCachedInputCostPerMillion(), model.getCacheWriteCostPerMillion(),
+                                model.getReasoningCostPerMillion())
                         .limits(model.getLimits().getRequestsPerMinute(),
                                 model.getLimits().getTokensPerMinute(),
                                 model.getLimits().getMaxConcurrency())
                         .priority(model.getPriority())
                         .weight(model.getWeight())
                         .metadata(model.getMetadata())
-                        .extensions(model.getExtensions()));
+                        .extensions(model.getExtensions());
+                    if (model.getOperations() == null || model.getOperations().isEmpty()) {
+                        throw new IllegalArgumentException("integration " + id + " model " + modelName + " operations must not be empty");
+                    }
+                    target.operations(model.getOperations().toArray(com.llmrix.model.router.core.model.ModelOperation[]::new));
+                    if (model.getFeatures() != null && !model.getFeatures().isEmpty()) target.features(model.getFeatures().toArray(com.llmrix.model.router.core.model.ModelFeature[]::new));
+                    if (model.getInputModalities() != null && !model.getInputModalities().isEmpty()) target.inputModalities(model.getInputModalities().toArray(com.llmrix.model.router.core.model.InputModality[]::new));
+                    if (model.getTraits() != null && !model.getTraits().isEmpty()) target.traits(model.getTraits().toArray(com.llmrix.model.router.core.model.ModelTrait[]::new));
+                });
             });
         });
-    }
-
-    private static com.llmrix.model.router.core.model.Capability capability(String value) {
-        if (!hasText(value)) throw new IllegalArgumentException("model capability must not be blank");
-        return com.llmrix.model.router.core.model.Capability.valueOf(
-                value.replace('-', '_').toUpperCase(java.util.Locale.ROOT));
     }
 
     private static void validateRoot(LlmRouterProperties properties) {
@@ -339,20 +351,21 @@ public class LlmRouterAutoConfiguration {
         }
 
         @Bean
-        @ConditionalOnBean(MeterRegistry.class)
+        @ConditionalOnBean({MeterRegistry.class, RoutedModelOperationsRegistry.class})
         @ConditionalOnMissingBean(name = "llmRouterMetricsBinder")
-        MeterBinder llmRouterMetricsBinder(RoutedChatModels models, LlmRouterProperties properties) {
-            return new RouterMetricsBinder(models, properties.getObservability().isIncludeCandidateId());
+        MeterBinder llmRouterMetricsBinder(RoutedModelOperationsRegistry routes, LlmRouterProperties properties) {
+            return new RouterMetricsBinder(routes, properties.getObservability().isIncludeCandidateId());
         }
     }
 
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(HealthIndicator.class)
+    @ConditionalOnBean(RoutedModelOperationsRegistry.class)
     static class ActuatorConfiguration {
         @Bean
         @ConditionalOnMissingBean(name = "llmRouterHealthIndicator")
-        HealthIndicator llmRouterHealthIndicator(RoutedChatModels models) {
-            return new LlmRouterHealthIndicator(models);
+        HealthIndicator llmRouterHealthIndicator(RoutedModelOperationsRegistry routes) {
+            return new LlmRouterHealthIndicator(routes);
         }
     }
 }

@@ -38,10 +38,11 @@ public final class OpenAiEmbeddingController {
 
     @PostMapping("/embeddings")
     public Map<String, Object> embeddings(@RequestBody JsonNode body, HttpServletRequest servletRequest) {
-        String model = text(body, "model", true);
+        String model = OpenAiRequestParser.text(body, "model", true);
         EmbeddingRequest request = new EmbeddingRequest(parseInputs(body.get("input")),
                 encoding(body.path("encoding_format").asText("float")),
-                integer(body.get("dimensions")), text(body, "user", false), routing.hints(servletRequest));
+                OpenAiRequestParser.integer(body.get("dimensions")),
+                OpenAiRequestParser.text(body, "user", false), routing.hints(servletRequest));
         EmbeddingResponse response = routing.route(model).embed(request);
         List<Map<String, Object>> data = response.data().stream().map(OpenAiEmbeddingController::vector).toList();
         return Map.of("object", "list", "data", data, "model", model,
@@ -92,17 +93,4 @@ public final class OpenAiEmbeddingController {
         };
     }
 
-    static String text(JsonNode body, String name, boolean required) {
-        JsonNode value = body == null ? null : body.get(name);
-        String result = value == null || value.isNull() ? null : value.asText();
-        if (required && (result == null || result.isBlank())) throw new IllegalArgumentException(name + " is required");
-        return result;
-    }
-
-    static Integer integer(JsonNode value) {
-        if (value == null || value.isNull()) return null;
-        if (!value.isIntegralNumber() || !value.canConvertToInt())
-            throw new IllegalArgumentException("expected integer");
-        return value.intValue();
-    }
 }

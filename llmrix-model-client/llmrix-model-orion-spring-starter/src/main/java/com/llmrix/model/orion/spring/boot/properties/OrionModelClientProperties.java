@@ -37,6 +37,7 @@ public class OrionModelClientProperties {
     public static class Defaults {
         private String chat;
         private String embedding;
+        private String rerank;
         private String audio;
         private String image;
         private String video;
@@ -45,6 +46,8 @@ public class OrionModelClientProperties {
         public void setChat(String chat) { this.chat = chat; }
         public String getEmbedding() { return embedding; }
         public void setEmbedding(String embedding) { this.embedding = embedding; }
+        public String getRerank() { return rerank; }
+        public void setRerank(String rerank) { this.rerank = rerank; }
         public String getAudio() { return audio; }
         public void setAudio(String audio) { this.audio = audio; }
         public String getImage() { return image; }

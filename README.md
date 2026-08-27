@@ -24,11 +24,11 @@
 </p>
 
 
-LLMRix exposes multiple model providers through one stable `ChatModel` interface. It selects an eligible model using capability, quality, cost, latency, quota, and health signals, then applies bounded retries and cooldown without leaking routing complexity into application code.
+LLMRix exposes multiple model providers through stable provider-neutral `ModelClient` and modality-specific model interfaces. It selects an eligible model using declared operations, features, input modalities, quality, cost, latency, quota, and health signals, then applies bounded retries and cooldown without leaking routing complexity into application code.
 
 Use it as an embedded Java SDK, a Spring Boot starter, or an OpenAI-compatible routing service.
 
-> Project status: General Availability (`1.0.1`). The Java API and configuration model are production-ready, with Semantic Versioning strictly enforced. Published to [Maven Central](https://central.sonatype.com/artifact/com.llmrix.model/llmrix-model-router-core).
+> Project status: General Availability (`1.0.2`). The Java API and configuration model are production-ready, with Semantic Versioning strictly enforced. Published to [Maven Central](https://central.sonatype.com/artifact/com.llmrix.model/llmrix-model-router-core).
 
 ## Why LLMRix
 
@@ -36,7 +36,7 @@ Use it as an embedded Java SDK, a Spring Boot starter, or an OpenAI-compatible r
 - **Policy separated from execution**: strategies rank model targets; the executor owns timeout, retry, quota, and cooldown correctness.
 - **Streaming-safe candidate switching**: the router can try another configured model before output begins and never replays after output begins.
 - **Local or distributed state**: zero-infrastructure local mode and Redis-backed health, leases, RPM, and TPM for multi-instance deployments.
-- **OpenAI-compatible edge**: Chat, Responses, Embeddings, Audio, Images, Models, and SSE endpoints.
+- **OpenAI-compatible edge**: Chat, Responses, Embeddings, Rerank, Audio, Images, Videos, Models, and SSE endpoints.
 - **Framework-neutral client**: Orion provides a small Java client plus optional Spring Boot auto-configuration.
 - **Observable by design**: lifecycle events, Micrometer metrics, Spring Observations, request IDs, and health indicators.
 - **Composable advanced routing**: semantic routing, contextual bandits, online shadow traffic, evaluation, and Fugu-style iterative orchestration.
@@ -53,8 +53,9 @@ The framework owns routing semantics and request correctness. Infrastructure rem
 
 | Artifact | Responsibility |
 |---|---|
-| `llmrix-model-router-core` | Provider-neutral API, runtime facade and Builder, model targets, strategies, execution, state SPI, provider SPI, quota, health, and events. |
-| `llmrix-model-router-integrations` | OpenAI protocol transport, default OpenAI/DeepSeek/OpenRouter registrations, Redis, Bucket4j, ONNX, evaluation, shadow, and Fugu adapters. |
+| `llmrix-model-open` | Shared model contracts, common model exceptions/authentication SPI, and reusable OpenAI-compatible transport/adapters. |
+| `llmrix-model-router-core` | Runtime facade and Builder, model targets, strategies, execution, state SPI, provider SPI, quota, health, and events. |
+| `llmrix-model-router-integrations` | Default OpenAI/DeepSeek/OpenRouter registrations, Redis, Bucket4j, ONNX, evaluation, shadow, and Fugu adapters. |
 | `llmrix-model-router-spring-starter` | Router properties, auto-configuration, OpenAI-compatible HTTP/SSE endpoints, HTTP authentication, request IDs, Actuator, Micrometer/Observation, and configuration metadata. |
 | `llmrix-model-orion` | Lightweight framework-neutral Java client for the routing server. |
 | `llmrix-model-orion-spring-starter` | Orion auto-configuration and Micrometer integration. |
@@ -79,12 +80,12 @@ The framework owns routing semantics and request correctness. Infrastructure rem
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-core</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.2</version>
 </dependency>
 <dependency>
   <groupId>com.llmrix.model</groupId>
   <artifactId>llmrix-model-router-integrations</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.2</version>
 </dependency>
 ```
 
@@ -97,29 +98,35 @@ try (LlmRouter router = LlmRouter.builder()
         .integration("openai", integration -> integration
             .apiKey(System.getenv("OPENAI_API_KEY"))
             .model("gpt-4.1-mini", model -> model
-                .capabilities(Capability.CHAT, Capability.TOOLS)))
+                .operations(ModelOperation.CHAT).features(ModelFeature.TOOLS)))
         .integration("deepseek", integration -> integration
             .apiKey(System.getenv("DEEPSEEK_API_KEY"))
             .model("deepseek-chat", model -> model
-                .capabilities(Capability.CHAT, Capability.TOOLS, Capability.CODE)))
+                .operations(ModelOperation.CHAT).features(ModelFeature.TOOLS).traits(ModelTrait.CODE)))
         .route("general", route -> route
             .strategy("balanced")
+            .quota(600L, 100_000L) // shared route RPM and TPM
             .models("openai/gpt-4.1-mini", "deepseek/deepseek-chat"))
         .build()) {
     ChatResponse response = router.chat("Review this Java code");
 }
 ```
 
+Route quotas are optional and apply to all targets in the route. The two-argument form is
+`quota(requestsPerMinute, tokensPerMinute)`. When an authenticated request contains
+`RoutingHints.AUTH_QUOTA_KEY`, each key receives an independent quota partition; otherwise the
+route uses a shared partition. Target-level `limits(...)` remain independent provider-model limits.
+
 ### Policy-based routing
 
 ```java
 RoutedChatModel model = RoutedChatModel.builder()
     .target("reasoning", reasoningModel, target -> target
-        .capabilities(Capability.REASONING, Capability.TOOLS)
+        .operations(ModelOperation.CHAT).features(ModelFeature.TOOLS).traits(ModelTrait.REASONING)
         .inputCostPerMillion(1.25)
         .outputCostPerMillion(10.00))
     .target("fast", fastModel, target -> target
-        .capabilities(Capability.CHAT, Capability.CODE)
+        .operations(ModelOperation.CHAT).traits(ModelTrait.CODE)
         .inputCostPerMillion(0.27)
         .outputCostPerMillion(1.10))
     .strategy(Strategies.balanced())
@@ -130,7 +137,7 @@ RoutedChatModel model = RoutedChatModel.builder()
 ChatResponse response = model.chat(ChatRequest.builder()
     .userMessage("Find the race condition")
     .routingHints(RoutingHints.builder()
-        .require(Capability.CODE)
+        .require(ModelTrait.CODE)
         .maxCostUsd(0.05)
         .build())
     .build());
@@ -180,8 +187,9 @@ export API_KEY=your-llmrix-http-key
 | Endpoint | Description |
 |---|---|
 | `POST /v1/chat/completions` | Synchronous and SSE streaming chat completions. |
-| `POST /v1/responses` | Core Responses API subset. |
+| `POST /v1/responses` | Core Responses API subset, with JSON and SSE streaming responses. |
 | `POST /v1/embeddings` | Text or token-array embeddings with `float` and `base64` encoding. |
+| `POST /v1/rerank` | Query/document reranking with relevance scores. |
 | `POST /v1/audio/transcriptions` | Multipart audio transcription. |
 | `POST /v1/audio/translations` | Multipart audio translation. |
 | `POST /v1/audio/speech` | Text-to-speech with a binary audio response. |
@@ -192,7 +200,22 @@ export API_KEY=your-llmrix-http-key
 | `GET /v1/videos/{video_id}/content` | Download completed video content. |
 | `DELETE /v1/videos/{video_id}` | Delete a video task. |
 | `POST /v1/videos/{video_id}/remix` | Create a remix task. |
-| `GET /v1/models` | Available routed model and route identifiers. |
+| `GET /v1/models` | Available chat route identifiers. Operation-only routes are selected by their endpoint. |
+
+The server example includes `embeddings` and `rerank` routes backed by free OpenRouter models.
+The request `model` is the Router route name, not the upstream model ID:
+
+```bash
+curl --location "${BASE_URL}/v1/embeddings" \
+  --header "Authorization: Bearer ${API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{"model":"embeddings","input":"Text to embed"}'
+
+curl --location "${BASE_URL}/v1/rerank" \
+  --header "Authorization: Bearer ${API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{"model":"rerank","query":"refund policy","documents":["Refunds are available within 30 days.","Contact support by email."],"top_n":1}'
+```
 
 ### Chat Completions
 
@@ -270,7 +293,7 @@ Clients should branch on the HTTP status and `error.type` / `error.code`, not on
 
 ### Multimodal Content
 
-Chat Completions accepts `text`, `image_url`, `video_url`, `input_audio`, and `file` content parts. The selected route must declare the corresponding capability (`vision`, `video-input`, `audio-input`, or `file-input`). Speech and video content endpoints return binary data instead of a JSON wrapper.
+Chat Completions accepts `text`, `image_url`, `video_url`, `input_audio`, and `file` content parts. The selected model must declare the corresponding `input-modalities` value (`vision`, `video`, `audio`, or `file`). Speech and video content endpoints return binary data instead of a JSON wrapper.
 
 ### Server Deployment
 
@@ -306,7 +329,7 @@ Training, reward modeling, and policy rollout stay offline. Runtime policy manif
 
 | SPI | Use it to |
 |---|---|
-| `ChatModel` / streaming model contract | Provider-neutral internal routing contract. |
+| `ModelClient` and modality-specific model contracts | Provider-neutral routing contract for chat, embeddings, rerank, audio, images, and video. |
 | `RoutingStrategy` | Implement business-specific target ordering. |
 | `RouterStateStore` | Persist health, quota, and concurrency state. |
 | `BanditStateStore` | Share contextual-bandit selections and rewards. |

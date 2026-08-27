@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-27
+
+### Added
+
+- Caffeine-backed local quota state with idle expiration and a fail-closed maximum partition limit.
+- Optional route-level RPM/TPM quotas for programmatic and Spring Boot routers, with independent
+  quota partitions when `RoutingHints.AUTH_QUOTA_KEY` is present.
+- OpenRouter Embeddings support through the OpenAI-compatible `/v1/embeddings` adapter.
+- OpenRouter Rerank support through the Cohere-compatible `/v1/rerank` adapter.
+- Free OpenRouter Embedding and Rerank routes in the standalone server example, including
+  `liquid/lfm-2.5-embedding-350m:free`, `nvidia/nemotron-3-embed-1b:free`,
+  `nvidia/llama-nemotron-rerank-vl-1b-v2:free`, and `qwen/qwen3-reranker-8b`.
+- Router and upstream curl examples for Embeddings and Rerank in the API and server documentation.
+- Orion client operations for Embeddings, Rerank, Audio, Image, and Video, including request-level
+  headers and observation callbacks consistent with Chat operations.
+- Private routing-hints transport between the Orion client and Router using the
+  `X-LLMRix-Routing-Hints` header.
+- Optional `forward-routing-hints` compatibility configuration for integrations that explicitly
+  require routing hints at the upstream boundary.
+- DEBUG-level OpenAI-compatible request diagnostics that report method, endpoint, model, fields,
+  and payload size without logging credentials or request content.
+
+### Changed
+
+- OpenRouter model credentials in the server example are now read from `OPENROUTER_API_KEY`.
+- Aggregate `usage.total_tokens` responses are mapped to input usage for input-only operations.
+- Provider-bound OpenAI-compatible requests now filter the private routing-hints header by default;
+  the Orion client continues to send it on the Client-to-Router hop.
+
+### Fixed
+
+- HTTP 200 Server-Sent Events containing an `error` event are now surfaced instead of being silently
+  treated as a successful stream completion.
+- Streaming chat responses now include final usage data when the provider supplies it.
+- Image and video responses retain provider `model` and `usage` fields.
+- Successful OpenAI-compatible responses are validated for required operation-specific fields before
+  being mapped to the common API.
+- Multipart filenames are sanitized to prevent CR/LF header injection.
+
 ## [1.0.1] - 2026-08-25
 
 ### Added
@@ -72,6 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `llmrix-model-examples`: Maven examples aggregator with module-scoped child projects; Redis and HTTP integration tests.
 - Maven Central deployment configuration and project metadata normalization.
 
-[Unreleased]: https://github.com/llmrix/llmrix-router/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/llmrix/llmrix-router/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/llmrix/llmrix-router/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/llmrix/llmrix-router/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/llmrix/llmrix-router/releases/tag/v1.0.0

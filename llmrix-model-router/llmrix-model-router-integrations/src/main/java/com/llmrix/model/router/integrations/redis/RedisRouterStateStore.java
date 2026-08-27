@@ -20,6 +20,7 @@ import java.util.UUID;
  * Redis-backed atomic health, lease and fixed-window quota state.
  */
 public final class RedisRouterStateStore implements RouterStateStore, AutoCloseable {
+
     private static final String HEALTH_READ = "redis.call('ZREMRANGEBYSCORE',KEYS[2],'-inf',ARGV[1]); "
             + "return {redis.call('HGET',KEYS[1],'cooldown_until') or '0',redis.call('ZCARD',KEYS[2]),"
             + "redis.call('HGET',KEYS[1],'latency_micros') or '0'}";

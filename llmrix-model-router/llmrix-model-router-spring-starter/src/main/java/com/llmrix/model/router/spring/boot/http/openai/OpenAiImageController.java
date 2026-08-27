@@ -30,6 +30,7 @@ import java.util.Map;
 @RequestMapping("/v1/images")
 @ConditionalOnProperty(prefix = "llmrix.model.router.http", name = "enabled", havingValue = "true")
 public final class OpenAiImageController {
+
     private final OpenAiRoutingContext routing;
 
     @Autowired
@@ -43,18 +44,18 @@ public final class OpenAiImageController {
 
     @PostMapping("/generations")
     public Map<String, Object> generations(@RequestBody JsonNode body, HttpServletRequest servletRequest) {
-        String model = OpenAiEmbeddingController.text(body, "model", true);
+        String model = OpenAiRequestParser.text(body, "model", true);
         ImageRequest request = new ImageRequest(
-                OpenAiEmbeddingController.text(body, "prompt", true),
-                OpenAiEmbeddingController.integer(body.get("n")),
-                OpenAiEmbeddingController.text(body, "size", false),
-                OpenAiEmbeddingController.text(body, "quality", false),
-                OpenAiEmbeddingController.text(body, "style", false),
-                OpenAiEmbeddingController.text(body, "response_format", false),
-                OpenAiEmbeddingController.text(body, "user", false),
-                OpenAiEmbeddingController.text(body, "background", false),
-                OpenAiEmbeddingController.text(body, "output_format", false),
-                OpenAiEmbeddingController.integer(body.get("output_compression")),
+                OpenAiRequestParser.text(body, "prompt", true),
+                OpenAiRequestParser.integer(body.get("n")),
+                OpenAiRequestParser.text(body, "size", false),
+                OpenAiRequestParser.text(body, "quality", false),
+                OpenAiRequestParser.text(body, "style", false),
+                OpenAiRequestParser.text(body, "response_format", false),
+                OpenAiRequestParser.text(body, "user", false),
+                OpenAiRequestParser.text(body, "background", false),
+                OpenAiRequestParser.text(body, "output_format", false),
+                OpenAiRequestParser.integer(body.get("output_compression")),
                 routing.hints(servletRequest));
         return protocol(routing.route(model).generate(request));
     }
@@ -92,7 +93,16 @@ public final class OpenAiImageController {
 
     private static Map<String, Object> protocol(ImageResponse response) {
         List<Map<String, Object>> data = response.data().stream().map(OpenAiImageController::protocol).toList();
-        return Map.of("created", response.created(), "data", data);
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("created", response.created());
+        value.put("data", data);
+        if (response.modelId() != null) value.put("model", response.modelId());
+        if (response.usage().inputTokens() >= 0 && response.usage().outputTokens() >= 0) {
+            value.put("usage", Map.of("input_tokens", response.usage().inputTokens(),
+                    "output_tokens", response.usage().outputTokens(),
+                    "total_tokens", response.usage().totalTokens()));
+        }
+        return value;
     }
 
     private static Map<String, Object> protocol(ImageData image) {

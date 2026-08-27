@@ -325,8 +325,7 @@ public final class FuguOrchestrator implements ChatModel {
                 call = executor.submit(() -> candidate.chat(request));
                 ChatResponse response = remaining == Long.MAX_VALUE ? call.get() : call.get(remaining, TimeUnit.NANOSECONDS);
                 if (response.usage().totalTokens() >= 0) {
-                    spentUsd[0] += pricing.get(candidateId).estimateCost(
-                            response.usage().inputTokens(), response.usage().outputTokens()) - reservedCost;
+                    spentUsd[0] += pricing.get(candidateId).estimateCost(response.usage()) - reservedCost;
                 }
                 return response;
             } catch (TimeoutException e) {

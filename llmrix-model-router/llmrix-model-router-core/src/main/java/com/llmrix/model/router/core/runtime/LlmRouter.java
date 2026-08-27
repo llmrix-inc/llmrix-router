@@ -11,6 +11,9 @@ import com.llmrix.model.router.core.api.chat.ChatResponse;
 import com.llmrix.model.router.core.api.embedding.EmbeddingModel;
 import com.llmrix.model.router.core.api.embedding.EmbeddingRequest;
 import com.llmrix.model.router.core.api.embedding.EmbeddingResponse;
+import com.llmrix.model.router.core.api.rerank.RerankModel;
+import com.llmrix.model.router.core.api.rerank.RerankRequest;
+import com.llmrix.model.router.core.api.rerank.RerankResponse;
 import com.llmrix.model.router.core.api.image.ImageEditRequest;
 import com.llmrix.model.router.core.api.image.ImageModel;
 import com.llmrix.model.router.core.api.image.ImageRequest;
@@ -31,24 +34,30 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Flow;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Provider-neutral runtime facade for programmatically configured model routes.
  */
-public final class LlmRouter implements ChatModel, EmbeddingModel, AudioModel, ImageModel, VideoModel, AutoCloseable {
+public final class LlmRouter implements ChatModel, EmbeddingModel, RerankModel, AudioModel, ImageModel, VideoModel, AutoCloseable {
     private final String defaultRoute;
     private final Map<String, ModelTarget> targets;
     private final RoutedChatModels chatRoutes;
     private final RoutedModelOperationsRegistry operationRoutes;
+    private final ExecutorService executor;
+    private final boolean ownsExecutor;
     private final AtomicBoolean closed = new AtomicBoolean();
 
     LlmRouter(String defaultRoute, Map<String, ModelTarget> targets,
-              RoutedChatModels chatRoutes, RoutedModelOperationsRegistry operationRoutes) {
+              RoutedChatModels chatRoutes, RoutedModelOperationsRegistry operationRoutes,
+              ExecutorService executor, boolean ownsExecutor) {
         this.defaultRoute = defaultRoute;
         this.targets = Map.copyOf(targets);
         this.chatRoutes = chatRoutes;
         this.operationRoutes = operationRoutes;
+        this.executor = executor;
+        this.ownsExecutor = ownsExecutor;
     }
 
     public static LlmRouterBuilder builder() {
@@ -101,6 +110,11 @@ public final class LlmRouter implements ChatModel, EmbeddingModel, AudioModel, I
     @Override
     public EmbeddingResponse embed(EmbeddingRequest request) {
         return operationRoute(defaultRoute).embed(request);
+    }
+
+    @Override
+    public RerankResponse rerank(RerankRequest request) {
+        return operationRoute(defaultRoute).rerank(request);
     }
 
     @Override
@@ -158,5 +172,6 @@ public final class LlmRouter implements ChatModel, EmbeddingModel, AudioModel, I
         if (!closed.compareAndSet(false, true)) return;
         chatRoutes.close();
         operationRoutes.close();
+        if (ownsExecutor) executor.shutdownNow();
     }
 }

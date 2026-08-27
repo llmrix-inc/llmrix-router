@@ -18,7 +18,8 @@ public final class RequestBudget {
     public synchronized Reservation tryReserve(ModelTarget candidate, ModelRequest request) {
         double estimate = candidate.pricing().estimateCost(
                 request.estimatedInputTokens(), request.estimatedOutputTokens());
-        if (limitUsd == null || !Double.isFinite(estimate)) return new Reservation(0, false);
+        if (limitUsd == null) return new Reservation(0, false);
+        if (!Double.isFinite(estimate)) return null;
         if (consumedUsd + estimate > limitUsd) return null;
         consumedUsd += estimate;
         return new Reservation(estimate, true);
@@ -27,7 +28,7 @@ public final class RequestBudget {
     public synchronized void settle(Reservation reservation, ModelTarget candidate, Usage usage) {
         if (reservation == null || !reservation.enforced()
                 || usage.inputTokens() < 0 || usage.outputTokens() < 0) return;
-        double actual = candidate.pricing().estimateCost(usage.inputTokens(), usage.outputTokens());
+        double actual = candidate.pricing().estimateCost(usage);
         if (Double.isFinite(actual)) consumedUsd += actual - reservation.reservedUsd();
     }
 

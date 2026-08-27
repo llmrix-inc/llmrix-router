@@ -1,6 +1,6 @@
 package com.llmrix.model.router.core.engine;
 
-import com.llmrix.model.router.core.api.chat.ChatModel;
+import com.llmrix.model.router.core.exception.UnknownRouteException;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,7 +16,7 @@ public final class RoutedChatModels implements AutoCloseable {
 
     public RoutedChatModel get(String routeId) {
         RoutedChatModel model = routes.get(Objects.requireNonNull(routeId, "routeId"));
-        if (model == null) throw new IllegalArgumentException("unknown route: " + routeId);
+        if (model == null) throw new UnknownRouteException(routeId);
         return model;
     }
 

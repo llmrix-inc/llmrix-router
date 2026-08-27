@@ -3,7 +3,9 @@ package com.llmrix.model.router.core.engine;
 import com.llmrix.model.router.core.api.Usage;
 import com.llmrix.model.router.core.api.chat.*;
 import com.llmrix.model.router.core.model.ModelTarget;
-import com.llmrix.model.router.core.model.Capability;
+import com.llmrix.model.router.core.model.ModelOperation;
+import com.llmrix.model.router.core.model.ModelTrait;
+import com.llmrix.model.router.core.model.InputModality;
 import com.llmrix.model.router.core.model.ModelLimits;
 import com.llmrix.model.router.core.model.ModelPricing;
 import com.llmrix.model.router.core.stream.ToolCallAccumulator;
@@ -46,13 +48,13 @@ class RoutedChatModelTest {
         ChatModel coding = request -> ChatResponse.of("coding");
 
         try (RoutedChatModel router = RoutedChatModel.builder()
-                .target(ModelTarget.builder("general", general).capabilities(Capability.CHAT).build())
-                .target(ModelTarget.builder("coding", coding).capabilities(Capability.CHAT, Capability.CODE).build())
+                .target(ModelTarget.builder("general", general).operations(ModelOperation.CHAT).build())
+                .target(ModelTarget.builder("coding", coding).operations(ModelOperation.CHAT).traits(ModelTrait.CODE).build())
                 .strategy("priority", Strategies.priority())
                 .build()) {
             ChatRequest request = ChatRequest.builder()
                     .userMessage("review")
-                    .routingHints(RoutingHints.builder().require(Capability.CODE).build())
+                    .routingHints(RoutingHints.builder().require(ModelTrait.CODE).build())
                     .build();
 
             ChatResponse response = router.chat(request);
@@ -67,9 +69,9 @@ class RoutedChatModelTest {
     void routesFileInputOnlyToFileCapableModel() {
         try (RoutedChatModel router = RoutedChatModel.builder()
                 .target(ModelTarget.builder("chat", request -> ChatResponse.of("chat"))
-                        .capabilities(Capability.CHAT).build())
+                        .operations(ModelOperation.CHAT).build())
                 .target(ModelTarget.builder("documents", request -> ChatResponse.of("documents"))
-                        .capabilities(Capability.CHAT, Capability.FILE_INPUT).build())
+                        .operations(ModelOperation.CHAT).inputModalities(InputModality.FILE).build())
                 .strategy("priority", Strategies.priority())
                 .build()) {
             ChatRequest request = ChatRequest.builder()
@@ -85,9 +87,9 @@ class RoutedChatModelTest {
     void routesAudioInputOnlyToAudioCapableModel() {
         try (RoutedChatModel router = RoutedChatModel.builder()
                 .target(ModelTarget.builder("chat", request -> ChatResponse.of("chat"))
-                        .capabilities(Capability.CHAT).build())
+                        .operations(ModelOperation.CHAT).build())
                 .target(ModelTarget.builder("audio", request -> ChatResponse.of("audio"))
-                        .capabilities(Capability.CHAT, Capability.AUDIO_INPUT).build())
+                        .operations(ModelOperation.CHAT).inputModalities(InputModality.AUDIO).build())
                 .strategy("priority", Strategies.priority())
                 .build()) {
             ChatRequest request = ChatRequest.builder()

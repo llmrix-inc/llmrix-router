@@ -5,6 +5,7 @@ import com.llmrix.model.router.spring.boot.http.web.RequestIdFilter;
 
 import com.llmrix.model.router.core.api.chat.ChatChunk;
 import com.llmrix.model.router.core.api.chat.ChatRequest;
+import com.llmrix.model.router.core.api.chat.PromptCacheOptions;
 import com.llmrix.model.router.core.api.chat.ChatResponse;
 import com.llmrix.model.router.core.api.chat.Message;
 import com.llmrix.model.router.core.engine.RoutedChatModel;
@@ -33,8 +34,10 @@ import com.llmrix.model.router.core.api.chat.ResponseFormat;
 import com.llmrix.model.router.core.api.chat.StreamOptions;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import jakarta.servlet.http.HttpServletRequest;
 import com.llmrix.model.router.core.routing.RoutingHints;
+import com.llmrix.model.router.integrations.RoutingHintsHttpCodec;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -46,6 +49,7 @@ import java.util.concurrent.Flow;
 
 @RestController
 @RequestMapping("/v1")
+@ConditionalOnBean(RoutedChatModels.class)
 @ConditionalOnProperty(prefix = "llmrix.model.router.http", name = "enabled", havingValue = "true")
 public class OpenAiController {
 
@@ -72,7 +76,6 @@ public class OpenAiController {
             throw new IllegalArgumentException("model is required");
         if (request.messages() == null || request.messages().isEmpty())
             throw new IllegalArgumentException("messages are required");
-        if (!models.routeIds().contains(request.model())) throw new UnknownModelException(request.model());
         RoutedChatModel model = models.get(request.model());
         ChatRequest.Builder coreRequest = ChatRequest.builder()
                 .messages(request.messages().stream().map(OpenAiController::toCoreMessage).toList())
@@ -93,6 +96,9 @@ public class OpenAiController {
         if (request.streamOptions() != null) {
             coreRequest.streamOptions(new StreamOptions(Boolean.TRUE.equals(request.streamOptions().includeUsage())));
         }
+        if (request.promptCacheKey() != null && !request.promptCacheKey().isBlank()) {
+            coreRequest.promptCache(new PromptCacheOptions(request.promptCacheKey(), request.promptCacheRetention()));
+        }
         ChatRequest builtRequest = coreRequest.build();
         return Boolean.TRUE.equals(request.stream())
                 ? stream(model, builtRequest, request.model())
@@ -108,7 +114,6 @@ public class OpenAiController {
         if (request.model() == null || request.model().isBlank())
             throw new IllegalArgumentException("model is required");
         rejectUnsupportedResponsesFields(request);
-        if (!models.routeIds().contains(request.model())) throw new UnknownModelException(request.model());
         List<Message> messages = responsesInput(request.input());
         ChatRequest.Builder builder = ChatRequest.builder().messages(messages)
                 .generationOptions(new com.llmrix.model.router.core.api.chat.GenerationOptions(
@@ -120,6 +125,9 @@ public class OpenAiController {
         if (request.toolChoice() != null && !request.toolChoice().isNull()) {
             builder.toolChoice(toResponsesToolChoice(request.toolChoice()));
         }
+        if (request.promptCacheKey() != null && !request.promptCacheKey().isBlank()) {
+            builder.promptCache(new PromptCacheOptions(request.promptCacheKey(), request.promptCacheRetention()));
+        }
         ChatRequest coreRequest = builder.build();
         if (Boolean.TRUE.equals(request.stream())) {
             return responsesStream(models.get(request.model()), coreRequest, request.model());
@@ -130,9 +138,7 @@ public class OpenAiController {
                 "id", id, "object", "response", "created_at", Instant.now().getEpochSecond(),
                 "status", "completed", "model", request.model(),
                 "output", responsesOutput(response),
-                "usage", Map.of("input_tokens", response.usage().inputTokens(),
-                        "output_tokens", response.usage().outputTokens(),
-                        "total_tokens", response.usage().totalTokens()));
+                "usage", responseUsage(response));
     }
 
     public Object responses(ResponsesRequest request) {
@@ -141,8 +147,15 @@ public class OpenAiController {
 
     private static void applyRequestId(ChatRequest.Builder builder, HttpServletRequest request) {
         if (request == null) return;
+        RoutingHints decoded = RoutingHintsHttpCodec.decode(request.getHeader(RoutingHintsHttpCodec.HEADER));
         Object requestId = request.getAttribute(RequestIdFilter.ATTRIBUTE);
         RoutingHints.Builder hints = RoutingHints.builder();
+        decoded.requirements().forEach(hints::require);
+        decoded.allowedModels().forEach(hints::allow);
+        decoded.deniedModels().forEach(hints::deny);
+        if (decoded.maxCostUsd() != null) hints.maxCostUsd(decoded.maxCostUsd());
+        if (decoded.maxLatency() != null) hints.maxLatency(decoded.maxLatency());
+        decoded.attributes().forEach(hints::attribute);
         if (requestId instanceof String value && !value.isBlank())
             hints.attribute(RoutingHints.REQUEST_ID, value);
         Object authentication = request.getAttribute(AuthenticationResult.REQUEST_ATTRIBUTE);
@@ -480,10 +493,26 @@ public class OpenAiController {
                         "message", message,
                         "finish_reason", response.finishReason() == null
                                 ? (response.toolCalls().isEmpty() ? "stop" : "tool_calls") : response.finishReason())),
-                "usage", Map.of(
-                        "prompt_tokens", response.usage().inputTokens(),
-                        "completion_tokens", response.usage().outputTokens(),
-                        "total_tokens", response.usage().totalTokens()));
+                "usage", usage(response, "prompt_tokens", "completion_tokens",
+                        "prompt_tokens_details", "completion_tokens_details"));
+    }
+
+    private static Map<String, Object> responseUsage(ChatResponse response) {
+        return usage(response, "input_tokens", "output_tokens",
+                "input_tokens_details", "output_tokens_details");
+    }
+
+    private static Map<String, Object> usage(ChatResponse response, String inputField, String outputField,
+                                             String cachedField, String reasoningField) {
+        Map<String, Object> usage = new LinkedHashMap<>();
+        usage.put(inputField, response.usage().inputTokens());
+        usage.put(outputField, response.usage().outputTokens());
+        usage.put("total_tokens", response.usage().totalTokens());
+        if (response.usage().cachedInputTokens() > 0)
+            usage.put(cachedField, Map.of("cached_tokens", response.usage().cachedInputTokens()));
+        if (response.usage().reasoningTokens() > 0)
+            usage.put(reasoningField, Map.of("reasoning_tokens", response.usage().reasoningTokens()));
+        return usage;
     }
 
     private static Map<String, Object> chunk(String id, long created, String model, ChatChunk chunk) {
@@ -502,7 +531,8 @@ public class OpenAiController {
                 return item;
             }).toList());
         }
-        return Map.of(
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.putAll(Map.of(
                 "id", id,
                 "object", "chat.completion.chunk",
                 "created", created,
@@ -511,7 +541,26 @@ public class OpenAiController {
                         "index", 0,
                         "delta", delta,
                         "finish_reason", chunk.finished()
-                                ? (chunk.finishReason() == null ? "stop" : chunk.finishReason()) : "")));
+                                ? (chunk.finishReason() == null ? "stop" : chunk.finishReason()) : ""))));
+        if (chunk.finished() && chunk.usage().inputTokens() >= 0 && chunk.usage().outputTokens() >= 0) {
+            value.put("usage", usage(chunk.usage(), "prompt_tokens", "completion_tokens",
+                    "prompt_tokens_details", "completion_tokens_details"));
+        }
+        return value;
+    }
+
+    private static Map<String, Object> usage(com.llmrix.model.router.core.api.Usage value,
+                                             String inputField, String outputField,
+                                             String cachedField, String reasoningField) {
+        Map<String, Object> usage = new LinkedHashMap<>();
+        usage.put(inputField, value.inputTokens());
+        usage.put(outputField, value.outputTokens());
+        usage.put("total_tokens", value.totalTokens());
+        if (value.cachedInputTokens() > 0)
+            usage.put(cachedField, Map.of("cached_tokens", value.cachedInputTokens()));
+        if (value.reasoningTokens() > 0)
+            usage.put(reasoningField, Map.of("reasoning_tokens", value.reasoningTokens()));
+        return usage;
     }
 
     private static Message toCoreMessage(CompletionMessage message) {
@@ -693,6 +742,10 @@ public class OpenAiController {
         private JsonNode responseFormat;
         @JsonProperty("stream_options")
         private CompletionStreamOptions streamOptions;
+        @JsonProperty("prompt_cache_key")
+        private String promptCacheKey;
+        @JsonProperty("prompt_cache_retention")
+        private String promptCacheRetention;
 
         public CompletionRequest() {
         }
@@ -789,6 +842,9 @@ public class OpenAiController {
         public CompletionStreamOptions streamOptions() {
             return streamOptions;
         }
+
+        public String promptCacheKey() { return promptCacheKey; }
+        public String promptCacheRetention() { return promptCacheRetention; }
     }
 
     public static final class CompletionMessage {
@@ -994,6 +1050,10 @@ public class OpenAiController {
         private List<String> include;
         @JsonProperty("background")
         private Boolean background;
+        @JsonProperty("prompt_cache_key")
+        private String promptCacheKey;
+        @JsonProperty("prompt_cache_retention")
+        private String promptCacheRetention;
 
         public ResponsesRequest() {
         }
@@ -1087,5 +1147,8 @@ public class OpenAiController {
         public Boolean background() {
             return background;
         }
+
+        public String promptCacheKey() { return promptCacheKey; }
+        public String promptCacheRetention() { return promptCacheRetention; }
     }
 }

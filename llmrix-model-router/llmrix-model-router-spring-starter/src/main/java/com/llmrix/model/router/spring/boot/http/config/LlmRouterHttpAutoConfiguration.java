@@ -4,6 +4,7 @@ import com.llmrix.model.router.spring.boot.autoconfigure.LlmRouterAutoConfigurat
 import com.llmrix.model.router.spring.boot.http.openai.OpenAiAudioController;
 import com.llmrix.model.router.spring.boot.http.openai.OpenAiController;
 import com.llmrix.model.router.spring.boot.http.openai.OpenAiEmbeddingController;
+import com.llmrix.model.router.spring.boot.http.openai.OpenAiRerankController;
 import com.llmrix.model.router.spring.boot.http.openai.OpenAiExceptionHandler;
 import com.llmrix.model.router.spring.boot.http.openai.OpenAiImageController;
 import com.llmrix.model.router.spring.boot.http.openai.OpenAiVideoController;
@@ -26,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @EnableConfigurationProperties(LlmRouterHttpProperties.class)
 @ConditionalOnClass(RestController.class)
 @ConditionalOnProperty(prefix = "llmrix.model.router.http", name = "enabled", havingValue = "true")
-@Import({OpenAiController.class, OpenAiEmbeddingController.class, OpenAiAudioController.class,
+@Import({OpenAiController.class, OpenAiEmbeddingController.class, OpenAiRerankController.class, OpenAiAudioController.class,
         OpenAiImageController.class, OpenAiVideoController.class, OpenAiExceptionHandler.class})
 public class LlmRouterHttpAutoConfiguration {
 

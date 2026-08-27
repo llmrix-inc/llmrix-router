@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-router</artifactId>
-        <version>1.0.1</version>
+        <version>1.0.2</version>
     </parent>
     <artifactId>llmrix-model-router-core</artifactId>
     <name>llmrix-model-router-core</name>
@@ -14,10 +14,18 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.llmrix.model</groupId>
+            <artifactId>llmrix-model-open</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
     </dependencies>
 </project>

@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import java.util.Map;
 import com.llmrix.model.router.core.exception.ContextWindowException;
 import com.llmrix.model.router.core.exception.ModelUnavailableException;
+import com.llmrix.model.router.core.exception.UnknownRouteException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -15,7 +16,7 @@ class OpenAiExceptionHandlerTest {
     @Test
     void mapsUnknownModelToOpenAiCompatibleNotFoundError() {
         ResponseEntity<Map<String, Object>> response =
-                new OpenAiExceptionHandler().unknownModel(new UnknownModelException("missing"));
+                new OpenAiExceptionHandler().unknownModel(new UnknownRouteException("missing"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         Map<?, ?> error = (Map<?, ?>) response.getBody().get("error");

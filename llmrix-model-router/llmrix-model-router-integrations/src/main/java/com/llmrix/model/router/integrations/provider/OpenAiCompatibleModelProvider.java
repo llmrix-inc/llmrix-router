@@ -4,12 +4,8 @@ import com.llmrix.model.router.core.api.ModelClient;
 import com.llmrix.model.router.core.spi.auth.RequestAuthenticator;
 import com.llmrix.model.router.core.spi.provider.ModelProvider;
 import com.llmrix.model.router.core.spi.provider.ModelProviderRequest;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleAudioModel;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleChatModel;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleEmbeddingModel;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleImageModel;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleVideoModel;
-import com.llmrix.model.router.integrations.openai.OpenAiTransport;
+import com.llmrix.model.router.integrations.openai.OpenAiModelFactory;
+import com.llmrix.model.router.integrations.openai.OpenAiModelOptions;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -55,28 +51,33 @@ public final class OpenAiCompatibleModelProvider implements ModelProvider {
     public ModelClient create(ModelProviderRequest request) {
         String baseUrl = hasText(request.baseUrl()) ? request.baseUrl() : defaultBaseUrl;
         Map<String, String> headers = providerHeaders(request.providerOptions());
-        OpenAiCompatibleChatModel.Builder builder = OpenAiCompatibleChatModel.builder()
-                .modelName(request.modelName())
-                .baseUrl(baseUrl)
-                .authenticator(request.authenticator())
-                .headers(headers)
-                .extensions(request.modelOptions());
-        if ("responses".equalsIgnoreCase(stringOption(request.providerOptions(), "api-mode"))) {
-            builder.responsesApi();
+        boolean responsesApi = "responses".equalsIgnoreCase(stringOption(request.providerOptions(), "api-mode"));
+        boolean forwardRoutingHints = booleanOption(request.providerOptions(), "forward-routing-hints")
+                || booleanOption(request.providerOptions(), "forwardRoutingHints");
+        OpenAiModelOptions options = new OpenAiModelOptions(baseUrl, request.modelName(), null,
+                request.authenticator(), headers, null, null, null, responsesApi, request.modelOptions(), forwardRoutingHints);
+        ModelClient.Builder client = ModelClient.builder().chat(OpenAiModelFactory.chat(options));
+        // OpenRouter and OpenAI expose the OpenAI-compatible embeddings endpoint.
+        // Other compatible integrations may only implement chat.
+        if ("openai".equals(id) || "openrouter".equals(id)) {
+            client.embeddings(OpenAiModelFactory.embedding(options));
         }
-        ModelClient.Builder client = ModelClient.builder().chat(builder.build());
-        OpenAiTransport transport = new OpenAiTransport(baseUrl, request.authenticator(), headers);
-        // OpenRouter exposes chat completions, but does not publish embedding
-        // models through its current /v1/models catalog or embeddings endpoint.
+        // Rerank follows the common Cohere/Jina-compatible POST /rerank contract.
+        client.rerank(OpenAiModelFactory.rerank(options));
         if ("openai".equals(id)) {
-            client.embeddings(new OpenAiCompatibleEmbeddingModel(request.modelName(), transport));
-        }
-        if ("openai".equals(id)) {
-            client.audio(new OpenAiCompatibleAudioModel(request.modelName(), transport));
-            client.images(new OpenAiCompatibleImageModel(request.modelName(), transport));
-            client.videos(new OpenAiCompatibleVideoModel(request.modelName(), transport));
+            client.audio(OpenAiModelFactory.audio(options));
+            client.images(OpenAiModelFactory.image(options));
+            client.videos(OpenAiModelFactory.video(options));
         }
         return client.build();
+    }
+
+    @Override
+    public void validate(ModelProviderRequest request) {
+        String mode = stringOption(request.providerOptions(), "api-mode");
+        if (mode != null && !"chat_completions".equalsIgnoreCase(mode) && !"responses".equalsIgnoreCase(mode)) {
+            throw new IllegalArgumentException("provider option api-mode must be chat_completions or responses");
+        }
     }
 
     private Map<String, String> providerHeaders(Map<String, Object> options) {
@@ -90,6 +91,12 @@ public final class OpenAiCompatibleModelProvider implements ModelProvider {
     private static String stringOption(Map<String, Object> options, String name) {
         Object value = options.get(name);
         return value == null ? null : Objects.toString(value);
+    }
+
+    private static boolean booleanOption(Map<String, Object> options, String name) {
+        Object value = options.get(name);
+        if (value instanceof Boolean bool) return bool;
+        return value != null && Boolean.parseBoolean(Objects.toString(value));
     }
 
     private static void putHeader(Map<String, String> headers, String name, String value) {

@@ -7,7 +7,10 @@ import com.llmrix.model.router.core.engine.RoutedChatModels;
 import com.llmrix.model.router.core.engine.RoutedModelOperations;
 import com.llmrix.model.router.core.engine.RoutedModelOperationsRegistry;
 import com.llmrix.model.router.core.event.RouterListener;
-import com.llmrix.model.router.core.model.Capability;
+import com.llmrix.model.router.core.model.ModelFeature;
+import com.llmrix.model.router.core.model.ModelOperation;
+import com.llmrix.model.router.core.model.InputModality;
+import com.llmrix.model.router.core.model.ModelTrait;
 import com.llmrix.model.router.core.model.ModelLimits;
 import com.llmrix.model.router.core.model.ModelPricing;
 import com.llmrix.model.router.core.model.ModelTarget;
@@ -38,6 +41,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.ServiceLoader;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 
 /** Builds a complete router without requiring Spring or external configuration. */
@@ -74,6 +79,7 @@ public final class LlmRouterBuilder {
         strategy("latency-aware", Strategies.latencyAware());
         strategy("cost-aware", Strategies.costAware());
         strategy("balanced", Strategies.balanced());
+        strategy("cache-aware", Strategies.cacheAware());
         ServiceLoader.load(RouterIntegrationDefaults.class)
                 .forEach(defaults -> defaults.configure(this));
     }
@@ -209,27 +215,35 @@ public final class LlmRouterBuilder {
         if (targets.isEmpty()) throw new IllegalArgumentException("at least one model target is required");
         if (routes.isEmpty()) throw new IllegalArgumentException("at least one route is required");
 
-        Map<String, RoutedChatModel> chatRoutes = new LinkedHashMap<>();
-        Map<String, RoutedModelOperations> operationRoutes = new LinkedHashMap<>();
-        routes.forEach((routeId, route) -> {
-            try {
-                RoutingStrategy routingStrategy = strategies.get(normalize(route.strategy, "strategy"));
-                if (routingStrategy == null) {
-                    throw new IllegalArgumentException("unknown routing strategy: " + route.strategy);
+        boolean ownsExecutor = executor == null;
+        ExecutorService sharedExecutor = ownsExecutor ? Executors.newCachedThreadPool(new DaemonThreadFactory()) : executor;
+        try {
+            Map<String, RoutedChatModel> chatRoutes = new LinkedHashMap<>();
+            Map<String, RoutedModelOperations> operationRoutes = new LinkedHashMap<>();
+            routes.forEach((routeId, route) -> {
+                try {
+                    RoutingStrategy routingStrategy = strategies.get(normalize(route.strategy, "strategy"));
+                    if (routingStrategy == null) {
+                        throw new IllegalArgumentException("unknown routing strategy: " + route.strategy);
+                    }
+                    Collection<ModelTarget> routeTargets = resolveTargets(routeId, route, targets);
+                    chatRoutes.put(routeId, buildChatRoute(routeId, route, routingStrategy, routeTargets, sharedExecutor));
+                    operationRoutes.put(routeId, buildOperationRoute(routeId, route, routingStrategy, routeTargets, sharedExecutor));
+                } catch (RuntimeException error) {
+                    handleInvalid("route " + routeId, error);
                 }
-                Collection<ModelTarget> routeTargets = resolveTargets(routeId, route, targets);
-                chatRoutes.put(routeId, buildChatRoute(routeId, route, routingStrategy, routeTargets));
-                operationRoutes.put(routeId, buildOperationRoute(routeId, route, routingStrategy, routeTargets));
-            } catch (RuntimeException error) {
-                handleInvalid("route " + routeId, error);
+            });
+            if (chatRoutes.isEmpty()) throw new IllegalArgumentException("no valid routes are configured");
+            if (!chatRoutes.containsKey(defaultRoute)) {
+                throw new IllegalArgumentException("default route does not exist: " + defaultRoute);
             }
-        });
-        if (chatRoutes.isEmpty()) throw new IllegalArgumentException("no valid routes are configured");
-        if (!chatRoutes.containsKey(defaultRoute)) {
-            throw new IllegalArgumentException("default route does not exist: " + defaultRoute);
+            return new LlmRouter(defaultRoute, targets,
+                    new RoutedChatModels(chatRoutes), new RoutedModelOperationsRegistry(operationRoutes, defaultRoute),
+                    sharedExecutor, ownsExecutor);
+        } catch (RuntimeException error) {
+            if (ownsExecutor) sharedExecutor.shutdownNow();
+            throw error;
         }
-        return new LlmRouter(defaultRoute, targets,
-                new RoutedChatModels(chatRoutes), new RoutedModelOperationsRegistry(operationRoutes));
     }
 
     private Map<String, ModelTarget> buildTargets() {
@@ -251,18 +265,24 @@ public final class LlmRouterBuilder {
                         integrationId, provider.id(), integration.apiKey, integration.options));
                 integration.models.forEach((modelName, model) -> {
                     String targetId = integrationId + "/" + modelName;
-                    ModelClient client = provider.create(new ModelProviderRequest(
+                    ModelProviderRequest providerRequest = new ModelProviderRequest(
                             integrationId, modelName, integration.baseUrl, requestAuthenticator,
-                            integration.options, model.extensions));
-                    ModelTarget target = ModelTarget.builder(targetId, client)
-                            .capabilities(model.capabilities.toArray(Capability[]::new))
+                            integration.options, model.extensions);
+                    provider.validate(providerRequest);
+                    ModelClient client = provider.create(providerRequest);
+                    ModelTarget.Builder targetBuilder = ModelTarget.builder(targetId, client)
                             .maxInputTokens(model.maxInputTokens)
                             .pricing(resolvePricing(integrationId, provider.id(), modelName, model))
                             .limits(model.limits)
                             .priority(model.priority)
                             .weight(model.weight)
                             .metadata(model.metadata)
-                            .build();
+                            ;
+                    targetBuilder.operations(model.operations.toArray(ModelOperation[]::new))
+                            .features(model.features.toArray(ModelFeature[]::new))
+                            .inputModalities(model.inputModalities.toArray(InputModality[]::new))
+                            .traits(model.traits.toArray(ModelTrait[]::new));
+                    ModelTarget target = targetBuilder.build();
                     if (targets.putIfAbsent(targetId, target) != null) {
                         throw new IllegalArgumentException("duplicate target: " + targetId);
                     }
@@ -304,27 +324,31 @@ public final class LlmRouterBuilder {
 
     private RoutedChatModel buildChatRoute(String routeId, RouteSpec route,
                                            RoutingStrategy strategy,
-                                           Collection<ModelTarget> targets) {
+                                           Collection<ModelTarget> targets,
+                                           ExecutorService sharedExecutor) {
         RoutedChatModel.Builder builder = RoutedChatModel.builder()
                 .strategy(route.strategy, strategy)
                 .timeout(timeout).maxRetries(maxRetries).retryDelay(retryDelay)
                 .failureThreshold(failureThreshold).cooldown(cooldown)
                 .firstTokenTimeout(firstTokenTimeout).streamIdleTimeout(streamIdleTimeout)
+                .quota(route.quota)
                 .stateStore(stateStore).stateNamespace(routeId).listener(listener);
-        if (executor != null) builder.executor(executor);
+        builder.executor(sharedExecutor);
         targets.forEach(builder::target);
         return builder.build();
     }
 
     private RoutedModelOperations buildOperationRoute(String routeId, RouteSpec route,
                                                        RoutingStrategy strategy,
-                                                       Collection<ModelTarget> targets) {
+                                                       Collection<ModelTarget> targets,
+                                                       ExecutorService sharedExecutor) {
         RoutedModelOperations.Builder builder = RoutedModelOperations.builder()
                 .strategy(route.strategy, strategy)
                 .timeout(timeout).maxRetries(maxRetries).retryDelay(retryDelay)
                 .failureThreshold(failureThreshold).cooldown(cooldown)
+                .quota(route.quota)
                 .stateStore(stateStore).stateNamespace(routeId).listener(listener);
-        if (executor != null) builder.executor(executor);
+        builder.executor(sharedExecutor);
         targets.forEach(builder::target);
         return builder.build();
     }
@@ -341,6 +365,17 @@ public final class LlmRouterBuilder {
     private static String requireText(String value, String name) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(name + " must not be blank");
         return value;
+    }
+
+    private static final class DaemonThreadFactory implements ThreadFactory {
+        private int sequence;
+
+        @Override
+        public synchronized Thread newThread(Runnable task) {
+            Thread thread = new Thread(task, "llmrix-router-" + sequence++);
+            thread.setDaemon(true);
+            return thread;
+        }
     }
 
     public final class IntegrationBuilder {
@@ -429,7 +464,10 @@ public final class LlmRouterBuilder {
     }
 
     public static final class ModelBuilder {
-        private final EnumSet<Capability> capabilities = EnumSet.of(Capability.CHAT);
+        private Set<ModelOperation> operations = Set.of();
+        private Set<ModelFeature> features = Set.of();
+        private Set<InputModality> inputModalities = Set.of();
+        private Set<ModelTrait> traits = Set.of();
         private Integer maxInputTokens;
         private ModelPricing pricing = ModelPricing.UNKNOWN;
         private ModelLimits limits = ModelLimits.UNLIMITED;
@@ -438,10 +476,22 @@ public final class LlmRouterBuilder {
         private Map<String, String> metadata = Map.of();
         private final Map<String, Object> extensions = new LinkedHashMap<>();
 
-        public ModelBuilder capabilities(Capability... values) {
-            capabilities.clear();
-            for (Capability value : values) capabilities.add(Objects.requireNonNull(value, "capability"));
-            if (capabilities.isEmpty()) throw new IllegalArgumentException("capabilities must not be empty");
+        public ModelBuilder operations(ModelOperation... values) {
+            Objects.requireNonNull(values, "operations");
+            operations = java.util.Set.of(values);
+            if (operations.isEmpty()) throw new IllegalArgumentException("operations must not be empty");
+            return this;
+        }
+        public ModelBuilder features(ModelFeature... values) {
+            features = java.util.Set.of(values);
+            return this;
+        }
+        public ModelBuilder inputModalities(InputModality... values) {
+            inputModalities = java.util.Set.of(values);
+            return this;
+        }
+        public ModelBuilder traits(ModelTrait... values) {
+            traits = java.util.Set.of(values);
             return this;
         }
 
@@ -458,6 +508,14 @@ public final class LlmRouterBuilder {
 
         public ModelBuilder pricing(Double inputCostPerMillion, Double outputCostPerMillion) {
             pricing = new ModelPricing(inputCostPerMillion, outputCostPerMillion);
+            return this;
+        }
+
+        public ModelBuilder pricing(Double inputCostPerMillion, Double outputCostPerMillion,
+                                    Double cachedInputCostPerMillion, Double cacheWriteCostPerMillion,
+                                    Double reasoningCostPerMillion) {
+            pricing = new ModelPricing(inputCostPerMillion, outputCostPerMillion,
+                    cachedInputCostPerMillion, cacheWriteCostPerMillion, reasoningCostPerMillion);
             return this;
         }
 
@@ -503,7 +561,9 @@ public final class LlmRouterBuilder {
         }
 
         private ModelSpec build() {
-            return new ModelSpec(Set.copyOf(capabilities), maxInputTokens, pricing, limits,
+            if (operations.isEmpty()) throw new IllegalArgumentException("model operations must not be empty");
+            return new ModelSpec(Set.copyOf(operations), Set.copyOf(features),
+                    Set.copyOf(inputModalities), Set.copyOf(traits), maxInputTokens, pricing, limits,
                     priority, weight, metadata, Map.copyOf(extensions));
         }
     }
@@ -512,6 +572,7 @@ public final class LlmRouterBuilder {
         private final String id;
         private String strategy = "balanced";
         private final List<String> models = new ArrayList<>();
+        private ModelLimits quota = ModelLimits.UNLIMITED;
 
         private RouteBuilder(String id) {
             this.id = id;
@@ -527,9 +588,24 @@ public final class LlmRouterBuilder {
             return this;
         }
 
+        /** Sets a shared RPM/TPM quota for all targets in this route. */
+        public RouteBuilder quota(Long requestsPerMinute, Long tokensPerMinute) {
+            quota = new ModelLimits(requestsPerMinute, tokensPerMinute, null);
+            return this;
+        }
+
+        public RouteBuilder quota(ModelLimits value) {
+            Objects.requireNonNull(value, "quota");
+            if (value.maxConcurrency() != null) {
+                throw new IllegalArgumentException("route quota does not support maxConcurrency");
+            }
+            quota = value;
+            return this;
+        }
+
         private RouteSpec build() {
             if (models.isEmpty()) throw new IllegalArgumentException("route " + id + " models must not be empty");
-            return new RouteSpec(strategy, List.copyOf(models));
+            return new RouteSpec(strategy, List.copyOf(models), quota);
         }
 
         private static void addIds(List<String> destination, String[] values, String name) {
@@ -558,7 +634,10 @@ public final class LlmRouterBuilder {
     }
 
     private static final class ModelSpec {
-        private final Set<Capability> capabilities;
+        private final Set<ModelOperation> operations;
+        private final Set<ModelFeature> features;
+        private final Set<InputModality> inputModalities;
+        private final Set<ModelTrait> traits;
         private final Integer maxInputTokens;
         private final ModelPricing pricing;
         private final ModelLimits limits;
@@ -567,10 +646,14 @@ public final class LlmRouterBuilder {
         private final Map<String, String> metadata;
         private final Map<String, Object> extensions;
 
-        private ModelSpec(Set<Capability> capabilities, Integer maxInputTokens,
+        private ModelSpec(Set<ModelOperation> operations, Set<ModelFeature> features,
+                          Set<InputModality> inputModalities, Set<ModelTrait> traits, Integer maxInputTokens,
                           ModelPricing pricing, ModelLimits limits, int priority, int weight,
                           Map<String, String> metadata, Map<String, Object> extensions) {
-            this.capabilities = capabilities;
+            this.operations = operations;
+            this.features = features;
+            this.inputModalities = inputModalities;
+            this.traits = traits;
             this.maxInputTokens = maxInputTokens;
             this.pricing = pricing;
             this.limits = limits;
@@ -584,10 +667,12 @@ public final class LlmRouterBuilder {
     private static final class RouteSpec {
         private final String strategy;
         private final List<String> models;
+        private final ModelLimits quota;
 
-        private RouteSpec(String strategy, List<String> models) {
+        private RouteSpec(String strategy, List<String> models, ModelLimits quota) {
             this.strategy = strategy;
             this.models = models;
+            this.quota = quota;
         }
     }
 }

@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.llmrix.model</groupId>
         <artifactId>llmrix-model-client</artifactId>
-        <version>1.0.1</version>
+        <version>1.0.2</version>
     </parent>
     <artifactId>llmrix-model-orion</artifactId>
     <name>llmrix-model-orion</name>
@@ -14,11 +14,7 @@
     <dependencies>
         <dependency>
             <groupId>com.llmrix.model</groupId>
-            <artifactId>llmrix-model-router-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.llmrix.model</groupId>
-            <artifactId>llmrix-model-router-integrations</artifactId>
+            <artifactId>llmrix-model-open</artifactId>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

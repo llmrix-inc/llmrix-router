@@ -172,6 +172,19 @@ public final class MicrometerRouterObservationListener implements RouterListener
             meters.counter("llm.router.tokens", "candidate", candidate, "type", "output")
                     .increment(event.usage().outputTokens());
         }
+        if (event.usage().cachedInputTokens() > 0) {
+            meters.counter("llm.router.tokens", "candidate", candidate, "type", "cached-input")
+                    .increment(event.usage().cachedInputTokens());
+            meters.counter("llm.router.cache", "candidate", candidate, "outcome", "hit").increment();
+        }
+        if (event.usage().cacheWriteTokens() > 0) {
+            meters.counter("llm.router.tokens", "candidate", candidate, "type", "cache-write")
+                    .increment(event.usage().cacheWriteTokens());
+        }
+        if (event.usage().reasoningTokens() > 0) {
+            meters.counter("llm.router.tokens", "candidate", candidate, "type", "reasoning")
+                    .increment(event.usage().reasoningTokens());
+        }
         if (includeCost && Double.isFinite(event.estimatedCostUsd())) {
             meters.counter("llm.router.cost", "candidate", candidate)
                     .increment(event.estimatedCostUsd());

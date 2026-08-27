@@ -16,6 +16,9 @@ import com.llmrix.model.router.core.api.chat.ChatChunk;
 import com.llmrix.model.router.core.api.embedding.EmbeddingModel;
 import com.llmrix.model.router.core.api.embedding.EmbeddingRequest;
 import com.llmrix.model.router.core.api.embedding.EmbeddingResponse;
+import com.llmrix.model.router.core.api.rerank.RerankModel;
+import com.llmrix.model.router.core.api.rerank.RerankRequest;
+import com.llmrix.model.router.core.api.rerank.RerankResponse;
 import com.llmrix.model.router.core.api.image.ImageEditRequest;
 import com.llmrix.model.router.core.api.image.ImageModel;
 import com.llmrix.model.router.core.api.image.ImageRequest;
@@ -27,12 +30,8 @@ import com.llmrix.model.router.core.api.video.VideoRemixRequest;
 import com.llmrix.model.router.core.api.video.VideoRequest;
 import com.llmrix.model.router.core.api.video.VideoResponse;
 import com.llmrix.model.router.core.spi.auth.RequestAuthenticator;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleAudioModel;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleChatModel;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleEmbeddingModel;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleImageModel;
-import com.llmrix.model.router.integrations.openai.OpenAiCompatibleVideoModel;
-import com.llmrix.model.router.integrations.openai.OpenAiTransport;
+import com.llmrix.model.router.integrations.openai.OpenAiModelFactory;
+import com.llmrix.model.router.integrations.openai.OpenAiModelOptions;
 
 import java.io.IOException;
 import java.net.URI;
@@ -54,6 +53,7 @@ public final class OrionModelClient {
     private final String apiKey;
     private final String defaultModel;
     private final String defaultEmbeddingModel;
+    private final String defaultRerankModel;
     private final String defaultAudioModel;
     private final String defaultImageModel;
     private final String defaultVideoModel;
@@ -64,6 +64,7 @@ public final class OrionModelClient {
     private final OrionModelClientListener listener;
     private final Map<ModelKey, ChatModel> chatModels = new ConcurrentHashMap<>();
     private final Map<String, EmbeddingModel> embeddingModels = new ConcurrentHashMap<>();
+    private final Map<String, RerankModel> rerankModels = new ConcurrentHashMap<>();
     private final Map<String, AudioModel> audioModels = new ConcurrentHashMap<>();
     private final Map<String, ImageModel> imageModels = new ConcurrentHashMap<>();
     private final Map<String, VideoModel> videoModels = new ConcurrentHashMap<>();
@@ -74,6 +75,7 @@ public final class OrionModelClient {
         this.apiKey = builder.apiKey;
         this.defaultModel = builder.defaultModel;
         this.defaultEmbeddingModel = builder.defaultEmbeddingModel;
+        this.defaultRerankModel = builder.defaultRerankModel;
         this.defaultAudioModel = builder.defaultAudioModel;
         this.defaultImageModel = builder.defaultImageModel;
         this.defaultVideoModel = builder.defaultVideoModel;
@@ -155,6 +157,29 @@ public final class OrionModelClient {
 
     public EmbeddingResponse embed(EmbeddingRequest request, OrionModelRequestOptions options) {
         return embeddingModel(defaultRoute(defaultEmbeddingModel), options).embed(request);
+    }
+
+    public RerankModel rerankModel(String model) {
+        String modelName = requireText(model, "model");
+        return rerankModels.computeIfAbsent(modelName, this::createRerankModel);
+    }
+
+    public RerankModel rerankModel(String model, OrionModelRequestOptions options) {
+        Objects.requireNonNull(options, "options");
+        if (options.headers().isEmpty()) return rerankModel(model);
+        return createRerankModel(requireText(model, "model"), mergedHeaders(options));
+    }
+
+    public RerankModel defaultRerankModel() {
+        return rerankModel(defaultRoute(defaultRerankModel));
+    }
+
+    public RerankResponse rerank(RerankRequest request) {
+        return defaultRerankModel().rerank(request);
+    }
+
+    public RerankResponse rerank(RerankRequest request, OrionModelRequestOptions options) {
+        return rerankModel(defaultRoute(defaultRerankModel), options).rerank(request);
     }
 
     public AudioModel audioModel(String model) {
@@ -333,16 +358,7 @@ public final class OrionModelClient {
     }
 
     private ChatModel createModel(ModelKey key, Map<String, String> requestHeaders) {
-            OpenAiCompatibleChatModel.Builder builder = OpenAiCompatibleChatModel.builder()
-                    .baseUrl(baseUri.toString())
-                    .apiKey(apiKey)
-                    .modelName(key.model())
-                    .timeout(timeout)
-                    .headers(requestHeaders)
-                    .httpClient(httpClient)
-                    .objectMapper(objectMapper);
-            if (key.responsesApi()) builder.responsesApi();
-            ChatModel model = builder.build();
+            ChatModel model = OpenAiModelFactory.chat(options(key.model(), key.responsesApi(), requestHeaders));
             if (listener == OrionModelClientListener.NOOP) return model;
         return new ObservingChatModel(model, listener, requestId(requestHeaders),
                     key.responsesApi() ? "responses" : "chat.completions", key.model());
@@ -353,8 +369,17 @@ public final class OrionModelClient {
     }
 
     private EmbeddingModel createEmbeddingModel(String model, Map<String, String> requestHeaders) {
-        EmbeddingModel delegate = new OpenAiCompatibleEmbeddingModel(model, transport(requestHeaders));
+        EmbeddingModel delegate = OpenAiModelFactory.embedding(options(model, false, requestHeaders));
         return ObservingModelOperations.embedding(delegate, listener, requestId(requestHeaders), model);
+    }
+
+    private RerankModel createRerankModel(String model) {
+        return createRerankModel(model, headers);
+    }
+
+    private RerankModel createRerankModel(String model, Map<String, String> requestHeaders) {
+        RerankModel delegate = OpenAiModelFactory.rerank(options(model, false, requestHeaders));
+        return ObservingModelOperations.rerank(delegate, listener, requestId(requestHeaders), model);
     }
 
     private AudioModel createAudioModel(String model) {
@@ -362,7 +387,7 @@ public final class OrionModelClient {
     }
 
     private AudioModel createAudioModel(String model, Map<String, String> requestHeaders) {
-        AudioModel delegate = new OpenAiCompatibleAudioModel(model, transport(requestHeaders));
+        AudioModel delegate = OpenAiModelFactory.audio(options(model, false, requestHeaders));
         return ObservingModelOperations.audio(delegate, listener, requestId(requestHeaders), model);
     }
 
@@ -371,7 +396,7 @@ public final class OrionModelClient {
     }
 
     private ImageModel createImageModel(String model, Map<String, String> requestHeaders) {
-        ImageModel delegate = new OpenAiCompatibleImageModel(model, transport(requestHeaders));
+        ImageModel delegate = OpenAiModelFactory.image(options(model, false, requestHeaders));
         return ObservingModelOperations.image(delegate, listener, requestId(requestHeaders), model);
     }
 
@@ -380,16 +405,16 @@ public final class OrionModelClient {
     }
 
     private VideoModel createVideoModel(String model, Map<String, String> requestHeaders) {
-        VideoModel delegate = new OpenAiCompatibleVideoModel(model, transport(requestHeaders), model);
+        VideoModel delegate = OpenAiModelFactory.video(options(model, false, requestHeaders));
         return ObservingModelOperations.video(delegate, listener, requestId(requestHeaders), model);
     }
 
-    private OpenAiTransport transport(Map<String, String> requestHeaders) {
+    private OpenAiModelOptions options(String model, boolean responsesApi, Map<String, String> requestHeaders) {
         RequestAuthenticator authenticator = apiKey == null || apiKey.isBlank()
                 ? RequestAuthenticator.NONE
                 : () -> Map.of("Authorization", "Bearer " + apiKey);
-        return new OpenAiTransport(baseUri.toString(), authenticator, requestHeaders,
-                httpClient, objectMapper, timeout);
+        return new OpenAiModelOptions(baseUri.toString(), model, model, authenticator, requestHeaders,
+                httpClient, objectMapper, timeout, responsesApi, Map.of(), true);
     }
 
     private String defaultRoute(String configured) {
@@ -451,6 +476,7 @@ public final class OrionModelClient {
         private String apiKey;
         private String defaultModel;
         private String defaultEmbeddingModel;
+        private String defaultRerankModel;
         private String defaultAudioModel;
         private String defaultImageModel;
         private String defaultVideoModel;
@@ -465,6 +491,7 @@ public final class OrionModelClient {
         public Builder apiKey(String value) { apiKey = value; return this; }
         public Builder defaultModel(String value) { defaultModel = value; return this; }
         public Builder defaultEmbeddingModel(String value) { defaultEmbeddingModel = value; return this; }
+        public Builder defaultRerankModel(String value) { defaultRerankModel = value; return this; }
         public Builder defaultAudioModel(String value) { defaultAudioModel = value; return this; }
         public Builder defaultImageModel(String value) { defaultImageModel = value; return this; }
         public Builder defaultVideoModel(String value) { defaultVideoModel = value; return this; }

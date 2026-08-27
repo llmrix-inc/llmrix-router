@@ -100,7 +100,7 @@ export API_KEY=your-llmrix-http-key
 
 ## Models
 
-### List Routes
+### List Chat Routes
 
 ```bash
 curl --location "${BASE_URL}/v1/models" \
@@ -118,6 +118,10 @@ Successful response:
   ]
 }
 ```
+
+This endpoint lists configured chat route IDs from the chat route registry. Routes that only expose
+Embeddings, Rerank, Audio, Image, or Video operations are selected through their corresponding
+operation endpoint and are not included in this list.
 
 ## Chat
 
@@ -223,7 +227,7 @@ All image, video, and file understanding requests return the same successful `ch
 
 ### Image Understanding
 
-The image model must declare the `vision` capability. The URL can be replaced with a `data:image/png;base64,...` Data URL.
+The selected model must declare `input-modalities: [vision]`. The URL can be replaced with a `data:image/png;base64,...` Data URL.
 
 ```bash
 curl --location "${BASE_URL}/v1/chat/completions" \
@@ -246,7 +250,7 @@ curl --location "${BASE_URL}/v1/chat/completions" \
 
 ### Video Understanding
 
-The video model must declare `video-input`. Video URLs can also be supplied as `data:video/mp4;base64,...` Data URLs.
+The selected model must declare `input-modalities: [video]`. Video URLs can also be supplied as `data:video/mp4;base64,...` Data URLs.
 
 ```bash
 curl --location "${BASE_URL}/v1/chat/completions" \
@@ -269,7 +273,7 @@ curl --location "${BASE_URL}/v1/chat/completions" \
 
 ### Document and PDF Understanding
 
-The selected model must declare `file-input`. A file can be supplied by public URL, Base64 Data URL, or uploaded file ID.
+The selected model must declare `input-modalities: [file]`. A file can be supplied by public URL, Base64 Data URL, or uploaded file ID.
 
 ```bash
 curl --location "${BASE_URL}/v1/chat/completions" \
@@ -302,14 +306,14 @@ The file content can instead use `file_data` with a `data:application/pdf;base64
 
 ## Embeddings
 
-The selected route must provide embedding capability. `input` may be a string, an array of strings, or token arrays. `encoding_format` supports `float` and `base64`.
+The selected route must declare the `embeddings` operation. `input` may be a string, an array of strings, or token arrays. `encoding_format` supports `float` and `base64`.
 
 ```bash
 curl --location "${BASE_URL}/v1/embeddings" \
   --header "Authorization: Bearer ${API_KEY}" \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "embedding",
+    "model": "embeddings",
     "input": ["First text", "Second text"],
     "encoding_format": "float"
   }'
@@ -324,16 +328,96 @@ Successful response:
     {"object": "embedding", "embedding": [0.0123, -0.0456], "index": 0},
     {"object": "embedding", "embedding": [0.0789, 0.0012], "index": 1}
   ],
-  "model": "embedding",
+  "model": "embeddings",
   "usage": {"prompt_tokens": 10, "total_tokens": 10}
 }
 ```
 
 With `encoding_format=base64`, each `embedding` value is a Base64 string instead of a float array.
 
+The server example includes OpenRouter-backed free embedding targets. Configure the OpenRouter
+integration with an API key and use the `embeddings` route:
+
+```yaml
+llmrix:
+  model:
+    router:
+      routes:
+        embeddings:
+          strategy: balanced
+          models:
+            - integration: openrouter
+              model: liquid/lfm-2.5-embedding-350m:free
+            - integration: openrouter
+              model: nvidia/nemotron-3-embed-1b:free
+      integrations:
+        openrouter:
+          provider: openrouter
+          base-url: https://openrouter.ai/api/v1
+          api-key: ${OPENROUTER_API_KEY}
+          models:
+            - name: liquid/lfm-2.5-embedding-350m:free
+              operations: [embeddings]
+            - name: nvidia/nemotron-3-embed-1b:free
+              operations: [embeddings]
+```
+
+The upstream OpenRouter endpoint can also be called directly with the same model ID:
+
+```bash
+curl --location "https://openrouter.ai/api/v1/embeddings" \
+  --header "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "nvidia/nemotron-3-embed-1b:free",
+    "input": "A short text to embed",
+    "encoding_format": "float"
+  }'
+```
+
+## Rerank
+
+`POST /v1/rerank` follows the common Cohere/Jina rerank request shape. The selected route must contain a
+model configured with the `rerank` operation and a provider exposing `POST /rerank`.
+
+```bash
+curl --location "${BASE_URL}/v1/rerank" \
+  --header "Authorization: Bearer ${API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "rerank",
+    "query": "What is the refund policy?",
+    "documents": ["Refunds are available within 30 days.", "Support is available by email."],
+    "top_n": 1,
+    "return_documents": true
+  }'
+```
+
+The response contains `results[].index`, `results[].relevance_score`, and (when requested)
+`results[].document.text`. Usage may contain `total_tokens` for providers that report aggregate
+input usage. OpenRouter exposes this protocol at `/v1/rerank`; the server example configures
+`nvidia/llama-nemotron-rerank-vl-1b-v2:free` and `qwen/qwen3-reranker-8b` as zero-priced targets
+at the time of writing.
+
+To call OpenRouter directly:
+
+```bash
+curl --location "https://openrouter.ai/api/v1/rerank" \
+  --header "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+    "query": "What is the refund policy?",
+    "documents": ["Refunds are available within 30 days.", "Support is available by email."],
+    "top_n": 1
+  }'
+```
+
 ## Audio
 
-Chat audio understanding uses the `input_audio` content part. The selected route must declare `audio-input`; this is separate from `file-input`, `audio-transcription`, and `text-to-speech`.
+Chat audio understanding uses the `input_audio` content part. The selected route must declare
+`input-modalities: [audio]`; this is separate from `input-modalities: [file]`, `audio-transcription`,
+and `text-to-speech` operations.
 
 ### Audio Understanding
 
@@ -456,7 +540,7 @@ The successful edit response has the same `created` and `data` structure as imag
 
 ## Videos
 
-Video generation requires a route whose model declares `video-generation`. It is separate from video understanding.
+Video generation requires a route whose model declares the `video-generation` operation. It is separate from video understanding.
 
 ### Create a Video Task
 

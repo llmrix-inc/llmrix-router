@@ -6,6 +6,8 @@ import com.llmrix.model.router.core.api.audio.AudioTextRequest;
 import com.llmrix.model.router.core.api.embedding.EmbeddingInput;
 import com.llmrix.model.router.core.api.embedding.EmbeddingRequest;
 import com.llmrix.model.router.core.api.embedding.EmbeddingResponse;
+import com.llmrix.model.router.core.api.rerank.RerankRequest;
+import com.llmrix.model.router.core.api.rerank.RerankResponse;
 import com.llmrix.model.router.core.api.image.ImageEditRequest;
 import com.llmrix.model.router.core.api.image.ImageInput;
 import com.llmrix.model.router.core.api.image.ImageRequest;
@@ -58,6 +60,30 @@ class OpenAiCompatibleMultimodalModelTest {
         assertThat(requestBody.get()).contains("\"input\":\"hello\"", "\"dimensions\":256", "\"user\":\"user-1\"");
         assertThat(response.data().get(0).values()).containsExactly(0.1, 0.2);
         assertThat(response.usage().totalTokens()).isEqualTo(3);
+    }
+
+    @Test
+    void sendsRerankRequestAndParsesScores() throws IOException {
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        server = server("/v1/rerank", exchange -> {
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, "application/json", """
+                    {"id":"r-1","model":"rerank-v3.5","results":[
+                      {"index":1,"relevance_score":0.9,"document":{"text":"second"}}],
+                     "usage":{"total_tokens":5}}
+                    """.getBytes(StandardCharsets.UTF_8));
+        });
+        OpenAiCompatibleRerankModel model = new OpenAiCompatibleRerankModel("rerank-v3.5", transport());
+
+        RerankResponse response = model.rerank(new RerankRequest(
+                "refund policy", List.of("support", "refunds"), 1, true, null));
+
+        assertThat(requestBody.get()).contains("\"query\":\"refund policy\"",
+                "\"documents\":[\"support\",\"refunds\"]", "\"top_n\":1", "\"return_documents\":true");
+        assertThat(response.results().get(0).index()).isEqualTo(1);
+        assertThat(response.results().get(0).relevanceScore()).isEqualTo(0.9);
+        assertThat(response.results().get(0).document()).isEqualTo("second");
+        assertThat(response.usage().inputTokens()).isEqualTo(5);
     }
 
     @Test
