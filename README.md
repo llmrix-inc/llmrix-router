@@ -43,11 +43,9 @@ Use it as an embedded Java SDK, a Spring Boot starter, or an OpenAI-compatible r
 
 ## Architecture
 
-[Open the interactive HTML architecture](docs/architecture/index.html), or download the [SVG](docs/architecture/llmrix-architecture.svg).
+![LLMRix Router core architecture](docs/images/llmrix-router-architecture.svg)
 
-![LLMRix Model Router runtime architecture](docs/architecture/llmrix-architecture.svg)
-
-The framework owns routing semantics and request correctness. Infrastructure remains responsible for TLS, WAF, load balancing, Redis HA, secret management, telemetry storage, and container orchestration.
+Clients enter through embedded Java, Spring Boot, or OpenAI-compatible HTTP APIs. The provider-neutral core filters and ranks model targets, executes calls with reliability controls, shares runtime state, and emits telemetry. The framework owns routing semantics and request correctness. Infrastructure remains responsible for TLS, WAF, load balancing, Redis HA, secret management, telemetry storage, and container orchestration.
 
 ## Modules
 
@@ -148,6 +146,8 @@ Applications can call synchronously, asynchronously, or as a `Flow.Publisher<Cha
 ## Routing Model
 
 Every request follows one deterministic execution pipeline:
+
+![Request decision sequence](docs/images/llmrix-router-request-decision-sequence.svg)
 
 1. Validate the request and normalize routing hints.
 2. Remove targets that violate capability, model, context, cost, quota, concurrency, or health constraints.
@@ -296,6 +296,8 @@ Clients should branch on the HTTP status and `error.type` / `error.code`, not on
 Chat Completions accepts `text`, `image_url`, `video_url`, `input_audio`, and `file` content parts. The selected model must declare the corresponding `input-modalities` value (`vision`, `video`, `audio`, or `file`). Speech and video content endpoints return binary data instead of a JSON wrapper.
 
 ### Server Deployment
+
+![Production deployment topology](docs/images/llmrix-router-production-deployment.svg)
 
 Server deployment, Spring Boot configuration, provider integrations, HTTP authentication, request ID propagation, startup commands, and additional curl examples are documented in [docs/server.md](docs/server.md). The full protocol reference with all endpoints, response shapes, and error formats is in [docs/api.md](docs/api.md).
 

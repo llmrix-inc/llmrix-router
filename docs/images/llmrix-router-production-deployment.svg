@@ -1,0 +1,244 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900" role="img" aria-labelledby="title desc">
+  <title id="title">Recommended LLMRix production deployment</title>
+  <desc id="desc">A reference standalone deployment with enterprise clients, edge gateway, two LLMRix Router replicas, Redis shared state, secret management, telemetry, controlled egress, public providers, and private models.</desc>
+  <style>
+    text { font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .title { fill: #111827; font-size: 25px; font-weight: 700; }
+    .subtitle { fill: #6b7280; font-size: 13px; }
+    .zone-title { fill: #374151; font-size: 12px; font-weight: 700; letter-spacing: 0.6px; }
+    .node-title { fill: #111827; font-size: 14px; font-weight: 700; }
+    .node-sub { fill: #6b7280; font-size: 11px; }
+    .small-title { fill: #111827; font-size: 12px; font-weight: 700; }
+    .small-sub { fill: #6b7280; font-size: 10px; }
+    .label { fill: #374151; font-size: 10px; font-weight: 600; }
+    .legend { fill: #4b5563; font-size: 11px; }
+    .badge { fill: #ffffff; font-size: 10px; font-weight: 700; }
+  </style>
+  <defs>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ea580c"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#9333ea"/>
+    </marker>
+    <filter id="shadow" x="-15%" y="-20%" width="130%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#111827" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect width="1400" height="900" fill="#ffffff"/>
+  <text x="40" y="40" class="title">Recommended Production Deployment</text>
+  <text x="40" y="64" class="subtitle">Standalone LLMRix Router cluster with shared runtime state and enterprise infrastructure boundaries</text>
+  <rect x="1202" y="25" width="158" height="35" rx="17" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="1281" y="47" text-anchor="middle" fill="#1d4ed8" font-size="12" font-weight="700">REFERENCE TOPOLOGY</text>
+
+  <!-- Zones -->
+  <rect x="34" y="104" width="186" height="510" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-dasharray="6,4"/>
+  <text x="48" y="127" class="zone-title">CALLERS</text>
+
+  <rect x="250" y="104" width="190" height="510" rx="8" fill="#fff7ed" fill-opacity="0.42" stroke="#fdba74" stroke-dasharray="6,4"/>
+  <text x="264" y="127" fill="#c2410c" font-size="12" font-weight="700" letter-spacing="0.6px">ENTERPRISE EDGE</text>
+
+  <rect x="470" y="84" width="500" height="550" rx="8" fill="#eff6ff" fill-opacity="0.44" stroke="#93c5fd" stroke-dasharray="6,4"/>
+  <text x="484" y="108" fill="#1d4ed8" font-size="12" font-weight="700" letter-spacing="0.6px">LLMRIX ROUTER CLUSTER</text>
+  <text x="952" y="108" text-anchor="end" fill="#6b7280" font-size="10">independent replicas + shared runtime state</text>
+
+  <rect x="1000" y="104" width="360" height="510" rx="8" fill="#f0fdf4" fill-opacity="0.40" stroke="#86efac" stroke-dasharray="6,4"/>
+  <text x="1014" y="127" fill="#15803d" font-size="12" font-weight="700" letter-spacing="0.6px">MODEL ACCESS ZONE</text>
+
+  <rect x="250" y="674" width="1110" height="164" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-dasharray="6,4"/>
+  <text x="264" y="697" class="zone-title">SHARED PLATFORM SERVICES</text>
+  <text x="1340" y="697" text-anchor="end" fill="#6b7280" font-size="10">operated by your infrastructure team</text>
+
+  <!-- Caller nodes -->
+  <rect x="58" y="158" width="138" height="86" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+  <circle cx="82" cy="187" r="12" fill="#2563eb"/>
+  <text x="82" y="191" text-anchor="middle" class="badge">J</text>
+  <text x="135" y="187" text-anchor="middle" class="node-title">Java Services</text>
+  <text x="127" y="209" text-anchor="middle" class="node-sub">Orion client</text>
+  <text x="127" y="227" text-anchor="middle" class="node-sub">route-based calls</text>
+
+  <rect x="58" y="312" width="138" height="86" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+  <circle cx="82" cy="341" r="12" fill="#6b7280"/>
+  <text x="82" y="345" text-anchor="middle" class="badge">API</text>
+  <text x="139" y="341" text-anchor="middle" class="node-title">Other SDKs</text>
+  <text x="127" y="363" text-anchor="middle" class="node-sub">Python / Node / Go</text>
+  <text x="127" y="381" text-anchor="middle" class="node-sub">OpenAI compatible</text>
+
+  <rect x="58" y="466" width="138" height="86" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+  <circle cx="82" cy="495" r="12" fill="#9333ea"/>
+  <text x="82" y="499" text-anchor="middle" class="badge">AG</text>
+  <text x="139" y="495" text-anchor="middle" class="node-title">Agents / Apps</text>
+  <text x="127" y="517" text-anchor="middle" class="node-sub">Chat / RAG / media</text>
+  <text x="127" y="535" text-anchor="middle" class="node-sub">streaming requests</text>
+
+  <!-- Gateway -->
+  <polygon points="345,198 407,234 407,474 345,510 283,474 283,234" fill="#fff7ed" stroke="#ea580c" stroke-width="1.8" filter="url(#shadow)"/>
+  <text x="345" y="267" text-anchor="middle" fill="#9a3412" font-size="15" font-weight="700">API Gateway</text>
+  <line x1="306" y1="286" x2="384" y2="286" stroke="#fdba74"/>
+  <text x="345" y="312" text-anchor="middle" class="node-sub">TLS termination</text>
+  <text x="345" y="338" text-anchor="middle" class="node-sub">WAF + external auth</text>
+  <text x="345" y="364" text-anchor="middle" class="node-sub">public rate limits</text>
+  <text x="345" y="390" text-anchor="middle" class="node-sub">load balancing</text>
+  <text x="345" y="416" text-anchor="middle" class="node-sub">request size limits</text>
+  <rect x="304" y="444" width="82" height="30" rx="15" fill="#ffedd5" stroke="#fdba74"/>
+  <text x="345" y="463" text-anchor="middle" fill="#9a3412" font-size="10" font-weight="700">NOT LLMRIX</text>
+
+  <!-- Router replica 1 -->
+  <rect x="500" y="134" width="440" height="204" rx="10" fill="#ffffff" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="500" y="134" width="440" height="31" rx="10" fill="#dbeafe"/>
+  <rect x="500" y="155" width="440" height="10" fill="#dbeafe"/>
+  <circle cx="520" cy="150" r="6" fill="#22c55e"/>
+  <text x="535" y="154" class="small-title">Router Replica 1</text>
+  <text x="918" y="154" text-anchor="end" class="small-sub">Spring Boot / Java 17+</text>
+
+  <rect x="520" y="184" width="112" height="76" rx="7" fill="#faf5ff" stroke="#d8b4fe"/>
+  <text x="576" y="207" text-anchor="middle" class="small-title">Spring Starter</text>
+  <text x="576" y="227" text-anchor="middle" class="small-sub">HTTP / SSE</text>
+  <text x="576" y="244" text-anchor="middle" class="small-sub">API key + request ID</text>
+
+  <rect x="664" y="184" width="112" height="76" rx="7" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="720" y="207" text-anchor="middle" class="small-title">Router Core</text>
+  <text x="720" y="227" text-anchor="middle" class="small-sub">filter + strategy</text>
+  <text x="720" y="244" text-anchor="middle" class="small-sub">execute + retry</text>
+
+  <rect x="808" y="184" width="112" height="76" rx="7" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="864" y="207" text-anchor="middle" class="small-title">Integrations</text>
+  <text x="864" y="227" text-anchor="middle" class="small-sub">provider adapters</text>
+  <text x="864" y="244" text-anchor="middle" class="small-sub">auth + transport</text>
+
+  <path d="M632 222 H664" fill="none" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arrow-blue)"/>
+  <path d="M776 222 H808" fill="none" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arrow-blue)"/>
+  <rect x="520" y="282" width="400" height="36" rx="6" fill="#f0fdf4" stroke="#bbf7d0"/>
+  <text x="720" y="305" text-anchor="middle" fill="#166534" font-size="11" font-weight="600">State SPI: quota / leases / health   |   Events: request / attempt / usage</text>
+
+  <!-- Router replica 2 -->
+  <rect x="500" y="374" width="440" height="204" rx="10" fill="#ffffff" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="500" y="374" width="440" height="31" rx="10" fill="#dbeafe"/>
+  <rect x="500" y="395" width="440" height="10" fill="#dbeafe"/>
+  <circle cx="520" cy="390" r="6" fill="#22c55e"/>
+  <text x="535" y="394" class="small-title">Router Replica 2</text>
+  <text x="918" y="394" text-anchor="end" class="small-sub">same config + independent process</text>
+
+  <rect x="520" y="424" width="112" height="76" rx="7" fill="#faf5ff" stroke="#d8b4fe"/>
+  <text x="576" y="447" text-anchor="middle" class="small-title">Spring Starter</text>
+  <text x="576" y="467" text-anchor="middle" class="small-sub">HTTP / SSE</text>
+  <text x="576" y="484" text-anchor="middle" class="small-sub">API key + request ID</text>
+
+  <rect x="664" y="424" width="112" height="76" rx="7" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="720" y="447" text-anchor="middle" class="small-title">Router Core</text>
+  <text x="720" y="467" text-anchor="middle" class="small-sub">filter + strategy</text>
+  <text x="720" y="484" text-anchor="middle" class="small-sub">execute + retry</text>
+
+  <rect x="808" y="424" width="112" height="76" rx="7" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="864" y="447" text-anchor="middle" class="small-title">Integrations</text>
+  <text x="864" y="467" text-anchor="middle" class="small-sub">provider adapters</text>
+  <text x="864" y="484" text-anchor="middle" class="small-sub">auth + transport</text>
+
+  <path d="M632 462 H664" fill="none" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arrow-blue)"/>
+  <path d="M776 462 H808" fill="none" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arrow-blue)"/>
+  <rect x="520" y="522" width="400" height="36" rx="6" fill="#f0fdf4" stroke="#bbf7d0"/>
+  <text x="720" y="545" text-anchor="middle" fill="#166534" font-size="11" font-weight="600">State SPI: quota / leases / health   |   Events: request / attempt / usage</text>
+
+  <!-- Model access -->
+  <polygon points="1055,254 1100,280 1100,332 1055,358 1010,332 1010,280" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.6"/>
+  <text x="1055" y="300" text-anchor="middle" fill="#115e59" font-size="12" font-weight="700">Controlled</text>
+  <text x="1055" y="318" text-anchor="middle" fill="#115e59" font-size="12" font-weight="700">Egress</text>
+  <text x="1055" y="338" text-anchor="middle" class="small-sub">HTTPS / private net</text>
+
+  <rect x="1140" y="157" width="190" height="174" rx="8" fill="#ffffff" stroke="#86efac" stroke-width="1.5"/>
+  <text x="1235" y="184" text-anchor="middle" class="node-title">Public Providers</text>
+  <text x="1235" y="204" text-anchor="middle" class="node-sub">provider keys stay in Router</text>
+  <circle cx="1176" cy="246" r="19" fill="#10a37f"/>
+  <text x="1176" y="250" text-anchor="middle" class="badge">OAI</text>
+  <circle cx="1235" cy="246" r="19" fill="#111827"/>
+  <text x="1235" y="250" text-anchor="middle" class="badge">DS</text>
+  <circle cx="1294" cy="246" r="19" fill="#6366f1"/>
+  <text x="1294" y="250" text-anchor="middle" class="badge">OR</text>
+  <text x="1235" y="286" text-anchor="middle" class="node-sub">OpenAI / DeepSeek / OpenRouter</text>
+  <text x="1235" y="307" text-anchor="middle" class="small-sub">timeouts + provider limits still apply</text>
+
+  <rect x="1140" y="389" width="190" height="160" rx="8" fill="#ffffff" stroke="#86efac" stroke-width="1.5"/>
+  <text x="1235" y="416" text-anchor="middle" class="node-title">Private Models</text>
+  <text x="1235" y="436" text-anchor="middle" class="node-sub">local or private network</text>
+  <circle cx="1194" cy="478" r="21" fill="#f59e0b"/>
+  <text x="1194" y="482" text-anchor="middle" class="badge">OL</text>
+  <circle cx="1276" cy="478" r="21" fill="#64748b"/>
+  <text x="1276" y="482" text-anchor="middle" class="badge">SPI</text>
+  <text x="1235" y="522" text-anchor="middle" class="node-sub">Ollama / custom provider</text>
+
+  <!-- Main request paths -->
+  <path d="M196 201 H236 V280 H283" fill="none" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+  <path d="M196 355 H283" fill="none" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+  <path d="M196 509 H236 V430 H283" fill="none" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+
+  <path d="M407 304 H454 V222 H520" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <path d="M407 404 H454 V462 H520" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <rect x="414" y="332" width="60" height="16" rx="3" fill="#ffffff" opacity="0.96"/>
+  <text x="444" y="344" text-anchor="middle" class="label">load balance</text>
+
+  <path d="M920 222 H988 V286 H1010" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <path d="M920 462 H988 V326 H1010" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <rect x="944" y="348" width="48" height="16" rx="3" fill="#ffffff" opacity="0.96"/>
+  <text x="968" y="360" text-anchor="middle" class="label">requests</text>
+
+  <path d="M1100 296 H1120 V244 H1140" fill="none" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+  <path d="M1100 320 H1120 V469 H1140" fill="none" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+
+  <!-- Shared services -->
+  <ellipse cx="540" cy="730" rx="86" ry="13" fill="#fee2e2" stroke="#dc382d" stroke-width="1.5"/>
+  <rect x="454" y="730" width="172" height="49" fill="#fee2e2"/>
+  <line x1="454" y1="730" x2="454" y2="779" stroke="#dc382d" stroke-width="1.5"/>
+  <line x1="626" y1="730" x2="626" y2="779" stroke="#dc382d" stroke-width="1.5"/>
+  <ellipse cx="540" cy="779" rx="86" ry="13" fill="#fecaca" stroke="#dc382d" stroke-width="1.5"/>
+  <rect x="476" y="739" width="128" height="20" rx="3" fill="#fee2e2"/>
+  <text x="540" y="754" text-anchor="middle" fill="#991b1b" font-size="14" font-weight="700">Redis HA</text>
+  <rect x="465" y="758" width="150" height="19" rx="3" fill="#fee2e2"/>
+  <text x="540" y="772" text-anchor="middle" fill="#991b1b" font-size="10">quota / leases / health / bandit</text>
+
+  <rect x="710" y="717" width="212" height="79" rx="8" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+  <circle cx="740" cy="756" r="17" fill="#ea580c"/>
+  <text x="740" y="760" text-anchor="middle" class="badge">KEY</text>
+  <text x="826" y="748" text-anchor="middle" class="node-title">Secret Manager</text>
+  <text x="826" y="770" text-anchor="middle" class="node-sub">Router + provider credentials</text>
+
+  <rect x="1000" y="717" width="320" height="79" rx="8" fill="#faf5ff" stroke="#d8b4fe" stroke-width="1.5"/>
+  <circle cx="1032" cy="756" r="17" fill="#e6522c"/>
+  <text x="1032" y="760" text-anchor="middle" class="badge">OT</text>
+  <text x="1169" y="748" text-anchor="middle" class="node-title">Telemetry Platform</text>
+  <text x="1169" y="770" text-anchor="middle" class="node-sub">OTel Collector / Prometheus / logs / dashboards</text>
+
+  <!-- Platform flows attach to cluster boundary -->
+  <path d="M540 717 V652 H614 V634" fill="none" stroke="#16a34a" stroke-width="1.8" marker-start="url(#arrow-green)" marker-end="url(#arrow-green)"/>
+  <rect x="551" y="640" width="70" height="16" rx="3" fill="#ffffff" opacity="0.96"/>
+  <text x="586" y="652" text-anchor="middle" class="label">shared state</text>
+
+  <path d="M816 717 V654 H796 V634" fill="none" stroke="#ea580c" stroke-width="1.8" marker-end="url(#arrow-orange)"/>
+  <rect x="797" y="641" width="55" height="16" rx="3" fill="#ffffff" opacity="0.96"/>
+  <text x="824" y="653" text-anchor="middle" class="label">inject keys</text>
+
+  <path d="M900 634 V654 H1160 V717" fill="none" stroke="#9333ea" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#arrow-purple)"/>
+  <rect x="995" y="641" width="82" height="16" rx="3" fill="#ffffff" opacity="0.96"/>
+  <text x="1036" y="653" text-anchor="middle" class="label">metrics / traces</text>
+
+  <!-- Legend and notes -->
+  <g transform="translate(40, 716)">
+    <text x="0" y="0" class="zone-title">FLOW LEGEND</text>
+    <line x1="0" y1="28" x2="38" y2="28" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+    <text x="49" y="32" class="legend">request / response</text>
+    <line x1="0" y1="56" x2="38" y2="56" stroke="#16a34a" stroke-width="1.8" marker-end="url(#arrow-green)"/>
+    <text x="49" y="60" class="legend">state read / write</text>
+    <line x1="0" y1="84" x2="38" y2="84" stroke="#ea580c" stroke-width="1.8" marker-end="url(#arrow-orange)"/>
+    <text x="49" y="88" class="legend">secret injection</text>
+    <line x1="0" y1="112" x2="38" y2="112" stroke="#9333ea" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#arrow-purple)"/>
+    <text x="49" y="116" class="legend">async telemetry</text>
+  </g>
+
+  <text x="1360" y="873" text-anchor="end" fill="#9ca3af" font-size="10">Reference architecture for llmrix-router v1.0.2</text>
+</svg>
